@@ -3,6 +3,7 @@ import type { Tag } from '@shared/types'
 import { am } from '../lib/am'
 import { useLibrary } from '../store/useLibrary'
 import AssetCard from '../components/AssetCard'
+import DetailDrawer from '../components/DetailDrawer'
 
 /** 搜索防抖 hook：停止输入 300ms 后才触发查询（避免每敲一个字母就查一次库） */
 export function useDebouncedSearch(onChange: (v: string) => void, delayMs = 300): { value: string; set: (v: string) => void } {
@@ -44,6 +45,7 @@ export default function Grid(): JSX.Element {
 
   const [thumbSize, setThumbSize] = useState(160)
   const [seriesTags, setSeriesTags] = useState<Tag[]>([])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   // 首次进入 / 视图切换：加载列表与系列标签
   useEffect(() => {
@@ -138,7 +140,7 @@ export default function Grid(): JSX.Element {
       ) : (
         <div className="flex flex-wrap gap-3">
           {items.map((a) => (
-            <AssetCard key={a.id} asset={a} size={thumbSize} />
+            <AssetCard key={a.id} asset={a} size={thumbSize} onClick={() => setSelectedId(a.id)} />
           ))}
         </div>
       )}
@@ -148,6 +150,8 @@ export default function Grid(): JSX.Element {
           加载更多（已显示 {items.length} / {total}）
         </button>
       )}
+
+      <DetailDrawer assetId={selectedId} open={selectedId !== null} onClose={() => setSelectedId(null)} onOpenAsset={setSelectedId} />
     </div>
   )
 }
