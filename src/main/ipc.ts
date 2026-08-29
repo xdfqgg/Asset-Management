@@ -9,6 +9,7 @@ import {
   linkAssetTag,
   listAssets,
   listAssetTags,
+  listTags,
   setSetting,
   unlinkAssetTag,
   updateAssetCategory,
@@ -72,6 +73,11 @@ export function handleAssetGet(db: Db, id: unknown): unknown {
 export function handleAssetTags(db: Db, id: unknown): unknown {
   if (typeof id !== 'string' || !id) return []
   return listAssetTags(db, id)
+}
+
+export function handleTagsList(db: Db, type: unknown): unknown {
+  if (type !== undefined && type !== 'normal' && type !== 'series') throw new Error('非法的标签类型')
+  return listTags(db, type)
 }
 
 /** 详情面板修改资产：备注/大类/挂标签/摘标签，逐字段校验 */
@@ -156,6 +162,7 @@ export function registerIpcHandlers(ctx: IpcContext): void {
   ipcMain.handle('assets:list', (_e, q: unknown) => handleAssetsList(db, q))
   ipcMain.handle('assets:get', (_e, id: unknown) => handleAssetGet(db, id))
   ipcMain.handle('assets:tags', (_e, id: unknown) => handleAssetTags(db, id))
+  ipcMain.handle('tags:list', (_e, type: unknown) => handleTagsList(db, type))
   ipcMain.handle('assets:update', (_e, id: unknown, patch: unknown) => handleAssetsUpdate(db, id, patch))
   ipcMain.handle('settings:get', (_e, key: unknown) => handleSettingsGet(db, key))
   ipcMain.handle('settings:set', (_e, key: unknown, value: unknown) => handleSettingsSet(db, key, value))

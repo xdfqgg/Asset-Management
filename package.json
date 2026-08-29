@@ -11,7 +11,9 @@
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json --composite false && tsc --noEmit -p tsconfig.web.json --composite false",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "rebuild:electron": "cd node_modules/better-sqlite3 && prebuild-install --runtime=electron --target=33.4.11",
+    "rebuild:node": "npm rebuild better-sqlite3"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.1",

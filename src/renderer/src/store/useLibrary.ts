@@ -12,7 +12,7 @@ interface LibState {
   total: number
   setView(v: View): void
   setQuery(patch: Partial<AssetQuery>): void
-  load(): Promise<void>
+  load(append?: boolean): Promise<void>
 }
 
 export const useLibrary = create<LibState>((set, get) => ({
@@ -26,8 +26,11 @@ export const useLibrary = create<LibState>((set, get) => ({
       query: { ...s.query, category: v === 'home' || v === 'all' ? undefined : v, offset: 0 }
     })),
   setQuery: (patch) => set((s) => ({ query: { ...s.query, ...patch } })),
-  load: async () => {
+  load: async (append = false) => {
     const r = await am().assets.list(get().query)
-    set({ items: r.items, total: r.total })
+    set((s) => ({
+      items: append ? [...s.items, ...r.items] : r.items,
+      total: r.total
+    }))
   }
 }))

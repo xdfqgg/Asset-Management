@@ -17,6 +17,9 @@ declare global {
         tags(id: string): Promise<Tag[]>
         update(id: string, patch: AssetPatch): Promise<AssetRow | null>
       }
+      tags: {
+        list(type?: 'normal' | 'series'): Promise<Tag[]>
+      }
       blender: {
         health(): Promise<boolean>
         import(id: string, mode: 'link' | 'append'): Promise<void>

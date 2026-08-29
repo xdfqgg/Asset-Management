@@ -122,6 +122,13 @@ export function listAssets(
     where.push('a.id IN (SELECT asset_id FROM asset_tags WHERE tag_id=@seriesTagId)')
     params.seriesTagId = q.seriesTagId
   }
+  if (q.tagIds && q.tagIds.length > 0) {
+    const ph = q.tagIds.map(() => '?').join(',')
+    where.push(`a.id IN (SELECT asset_id FROM asset_tags WHERE tag_id IN (${ph}))`)
+    q.tagIds.forEach((t, i) => {
+      params[`tagId${i}`] = t
+    })
+  }
   const w = where.length ? 'WHERE ' + where.join(' AND ') : ''
   const sort = q.sort ?? 'name'
   const order = ['name', 'size_bytes', 'mtime_ms', 'created_at'].includes(sort) ? sort : 'name'
@@ -166,6 +173,13 @@ export function unlinkAssetTag(db: Database.Database, assetId: string, tagId: st
 
 export function listAssetTags(db: Database.Database, assetId: string): Tag[] {
   return db.prepare('SELECT t.* FROM tags t JOIN asset_tags at ON at.tag_id=t.id WHERE at.asset_id=?').all(assetId) as Tag[]
+}
+
+export function listTags(db: Database.Database, type?: TagType): Tag[] {
+  if (type) {
+    return db.prepare('SELECT * FROM tags WHERE type=? ORDER BY name').all(type) as Tag[]
+  }
+  return db.prepare('SELECT * FROM tags ORDER BY type, name').all() as Tag[]
 }
 
 // ---------- 设置 ----------

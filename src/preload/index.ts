@@ -15,6 +15,9 @@ const api = {
     tags: (id: string) => ipcRenderer.invoke('assets:tags', id),
     update: (id: string, patch: unknown) => ipcRenderer.invoke('assets:update', id, patch)
   },
+  tags: {
+    list: (type?: 'normal' | 'series') => ipcRenderer.invoke('tags:list', type)
+  },
   blender: {
     health: () => ipcRenderer.invoke('blender:health'),
     import: (id: string, mode: 'link' | 'append') => ipcRenderer.invoke('blender:import', id, mode)
