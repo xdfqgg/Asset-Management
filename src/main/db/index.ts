@@ -122,9 +122,11 @@ export function listAssets(
   const w = where.length ? 'WHERE ' + where.join(' AND ') : ''
   const sort = q.sort ?? 'name'
   const order = ['name', 'size_bytes', 'mtime_ms', 'created_at'].includes(sort) ? sort : 'name'
+  // 排序键是面向调用方的名称，数据库列名可能不同（name → filename），在这里映射
+  const col = order === 'name' ? 'filename' : order
   const dir = q.dir === 'desc' ? 'DESC' : 'ASC'
   const items = db
-    .prepare(`SELECT * FROM assets a ${w} ORDER BY a.${order} ${dir} LIMIT @limit OFFSET @offset`)
+    .prepare(`SELECT * FROM assets a ${w} ORDER BY a.${col} ${dir} LIMIT @limit OFFSET @offset`)
     .all({ ...params, limit: q.limit, offset: q.offset }) as AssetRow[]
   const total = (db.prepare(`SELECT COUNT(*) AS c FROM assets a ${w}`).get(params) as { c: number }).c
   return { items, total }
