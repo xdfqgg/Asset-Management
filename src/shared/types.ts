@@ -52,3 +52,11 @@ export interface Root {
   enabled: boolean
   created_at: string
 }
+
+/** 详情面板对单个资产的修改（IPC 层严格校验后才落库） */
+export interface AssetPatch {
+  notes?: string
+  category?: Category
+  addTagNames?: string[]
+  removeTagIds?: string[]
+}

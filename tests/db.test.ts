@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { it, expect, beforeEach } from 'vitest'
 import { openDb, migrate, upsertAsset, getAsset, addTag, linkAssetTag, listAssets } from '../src/main/db'
 import type { AssetRow } from '../src/shared/types'
 

@@ -49,3 +49,29 @@ export function removeAsset(db: Database.Database, rootId: string, relPath: stri
   removeAssetByPath(db, rootId, relPath)
   maintainSeriesTags(db)
 }
+
+/**
+ * 全量扫描一个根目录（启动时跑一次；增量交给 chokidar）。
+ * 跳过：blender_assets.cats.txt（我们自己的目录文件）、备份文件（~ 结尾）、隐藏目录、缩略图目录。
+ * 返回入库的资产 id 列表。
+ */
+export function scanDirectory(db: Database.Database, rootId: string): string[] {
+  const root = db.prepare('SELECT path FROM roots WHERE id=?').get(rootId) as { path: string } | undefined
+  if (!root || !fs.existsSync(root.path)) return []
+  const ids: string[] = []
+  const walk = (dir: string): void => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, entry.name)
+      if (entry.isDirectory()) {
+        if (entry.name.startsWith('.') || entry.name.endsWith('.am-thumbs')) continue
+        walk(abs)
+      } else if (entry.isFile()) {
+        if (entry.name === 'blender_assets.cats.txt' || entry.name.endsWith('~')) continue
+        const id = ingestFile(db, rootId, abs)
+        if (id) ids.push(id)
+      }
+    }
+  }
+  walk(root.path)
+  return ids
+}

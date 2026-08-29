@@ -1,6 +1,63 @@
 import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
+import fs from 'node:fs'
+import type { Database } from 'better-sqlite3'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { openDb, migrate, getAsset } from './db'
+import { registerIpcHandlers } from './ipc'
+import { listRoots } from './scan/roots'
+import { scanDirectory } from './scan/ingest'
+import { startWatcher } from './scan/watcher'
+import { TaskQueue } from './thumbs/queue'
+import { enqueueThumbnail } from './thumbs/pipeline'
+import { ensureCategoryCatalogs } from './catalogs'
+
+let db: Database.Database
+let queue: TaskQueue
+let thumbsDir: string
+
+function broadcast(channel: string, payload: unknown): void {
+  for (const w of BrowserWindow.getAllWindows()) {
+    w.webContents.send(channel, payload)
+  }
+}
+
+/** 装配主进程各模块（数据层 → 队列 → IPC → 扫描 → 监听） */
+function bootstrapLibrary(): void {
+  const userData = app.getPath('userData')
+  thumbsDir = join(userData, 'thumbs')
+  fs.mkdirSync(thumbsDir, { recursive: true })
+  db = openDb(join(userData, 'library.db'))
+  migrate(db)
+
+  queue = new TaskQueue(2)
+  queue.onDone = (assetId, ok) => {
+    const a = getAsset(db, assetId)
+    broadcast('thumbs:event', { assetId, status: a?.thumb_status ?? (ok ? 'ready' : 'failed') })
+  }
+
+  registerIpcHandlers({
+    db,
+    broadcast,
+    onRootAdded: (root) => {
+      void ensureCategoryCatalogs(db, [root.path])
+      for (const id of scanDirectory(db, root.id)) enqueueThumbnail(db, queue, id, thumbsDir)
+      broadcast('assets:event', { type: 'rescan', assetId: null })
+    }
+  })
+
+  // 启动：给每个根目录写 Blender 目录文件（互通）→ 全量扫描 → 缩略图入队 → 开启实时监听
+  void ensureCategoryCatalogs(db, listRoots(db).map((r) => r.path))
+  for (const root of listRoots(db)) {
+    for (const id of scanDirectory(db, root.id)) enqueueThumbnail(db, queue, id, thumbsDir)
+  }
+  startWatcher(db, (type, assetId) => {
+    if ((type === 'add' || type === 'change') && assetId) {
+      enqueueThumbnail(db, queue, assetId, thumbsDir)
+    }
+    broadcast('assets:event', { type, assetId })
+  })
+}
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -19,7 +76,7 @@ function createWindow(): void {
     mainWindow.show()
   })
 
-  // 外链（如帮助文档）交给系统浏览器打开，不在应用内跳转
+  // 外链交给系统浏览器打开，不在应用内跳转
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
@@ -40,6 +97,7 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
+  bootstrapLibrary()
   createWindow()
 
   app.on('activate', () => {

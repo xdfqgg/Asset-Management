@@ -8,7 +8,7 @@ import { renderAssetWithBlender } from '../src/main/thumbs/renderBlender'
 const spawnMock = vi.hoisted(() => ({ args: [] as string[], exitCode: 0 }))
 
 vi.mock('node:child_process', () => ({
-  spawn: (exe: string, args: string[]) => {
+  spawn: (_exe: string, args: string[]) => {
     spawnMock.args = args
     return {
       on: (ev: string, cb: (c?: number) => void) => {
