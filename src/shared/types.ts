@@ -51,6 +51,8 @@ export interface Root {
   path: string
   enabled: boolean
   created_at: string
+  /** 目录当前是否存在（移动硬盘被拔/文件夹被删 → false，界面显示「离线」） */
+  online?: boolean
 }
 
 /** 详情面板对单个资产的修改（IPC 层严格校验后才落库） */

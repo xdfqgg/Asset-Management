@@ -1,6 +1,7 @@
 // IPC 层：主进程与渲染进程之间的「电话总机」。
 // 安全原则（设计文档 §9）：所有来自界面的参数必须白名单校验后才能进 SQL/文件系统——
 // 渲染进程的代码用户可见可改，不能信任任何输入。
+import fs from 'node:fs'
 import type { AssetPatch, AssetQuery, Category, Root } from '../shared/types'
 import {
   addTag,
@@ -25,6 +26,8 @@ export interface IpcContext {
   broadcast: (channel: string, payload: unknown) => void
   /** 新增根目录后由主入口接管：写目录文件 + 全量扫描 + 缩略图入队 */
   onRootAdded: (root: Root) => void
+  /** 设置变更回调（如并发数热更新队列） */
+  onSettingsChanged?: (key: string, value: string) => void
 }
 
 const SORTS = ['name', 'size_bytes', 'mtime_ms', 'created_at'] as const
@@ -58,7 +61,7 @@ export function buildAssetQuery(raw: unknown): AssetQuery {
 // ---------- 可测试的纯 handler（不依赖 electron 运行时） ----------
 
 export function handleRootsList(db: Db): unknown {
-  return listRoots(db)
+  return listRoots(db).map((r) => ({ ...r, online: fs.existsSync(r.path) }))
 }
 
 export function handleAssetsList(db: Db, raw: unknown): unknown {
@@ -165,7 +168,10 @@ export function registerIpcHandlers(ctx: IpcContext): void {
   ipcMain.handle('tags:list', (_e, type: unknown) => handleTagsList(db, type))
   ipcMain.handle('assets:update', (_e, id: unknown, patch: unknown) => handleAssetsUpdate(db, id, patch))
   ipcMain.handle('settings:get', (_e, key: unknown) => handleSettingsGet(db, key))
-  ipcMain.handle('settings:set', (_e, key: unknown, value: unknown) => handleSettingsSet(db, key, value))
+  ipcMain.handle('settings:set', (_e, key: unknown, value: unknown) => {
+    handleSettingsSet(db, key, value)
+    if (typeof key === 'string' && typeof value === 'string') ctx.onSettingsChanged?.(key, value)
+  })
   ipcMain.handle('blender:health', () => handleBlenderHealth(db))
   ipcMain.handle('blender:import', (_e, id: unknown, mode: unknown) => handleBlenderImport(db, id, mode))
 }

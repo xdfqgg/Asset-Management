@@ -3,7 +3,7 @@ import type { AssetQuery, AssetRow, Category } from '@shared/types'
 import { am } from '../lib/am'
 
 // zustand：轻量状态管理（比 Redux 少一层样板）。整个界面的共享状态都在这里。
-type View = 'home' | 'all' | Category
+type View = 'home' | 'all' | 'settings' | Category
 
 interface LibState {
   view: View
@@ -23,7 +23,7 @@ export const useLibrary = create<LibState>((set, get) => ({
   setView: (v) =>
     set((s) => ({
       view: v,
-      query: { ...s.query, category: v === 'home' || v === 'all' ? undefined : v, offset: 0 }
+      query: { ...s.query, category: v === 'home' || v === 'all' || v === 'settings' ? undefined : v, offset: 0 }
     })),
   setQuery: (patch) => set((s) => ({ query: { ...s.query, ...patch } })),
   load: async (append = false) => {

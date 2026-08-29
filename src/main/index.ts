@@ -2,8 +2,9 @@ import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import fs from 'node:fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import { openDb, migrate, getAsset } from './db'
+import { openDb, migrate, getAsset, getSetting } from './db'
 import type { Db } from './db'
+import { backupDatabase, restoreLatestBackup } from './db/backup'
 import { registerIpcHandlers } from './ipc'
 import { listRoots } from './scan/roots'
 import { scanDirectory } from './scan/ingest'
@@ -22,15 +23,30 @@ function broadcast(channel: string, payload: unknown): void {
   }
 }
 
+/** 打开数据库：失败时自动用最新备份恢复再重试（设计文档 §9） */
+function openDbSafely(dbPath: string, backupsDir: string): Db {
+  try {
+    return openDb(dbPath)
+  } catch {
+    restoreLatestBackup(dbPath, backupsDir)
+    return openDb(dbPath)
+  }
+}
+
 /** 装配主进程各模块（数据层 → 队列 → IPC → 扫描 → 监听） */
 function bootstrapLibrary(): void {
   const userData = app.getPath('userData')
   thumbsDir = join(userData, 'thumbs')
+  const backupsDir = join(userData, 'backups')
+  const dbPath = join(userData, 'library.db')
   fs.mkdirSync(thumbsDir, { recursive: true })
-  db = openDb(join(userData, 'library.db'))
-  migrate(db)
 
-  queue = new TaskQueue(2)
+  db = openDbSafely(dbPath, backupsDir)
+  migrate(db)
+  backupDatabase(dbPath, backupsDir, 3) // 每次启动自动备份
+
+  const concurrency = Number(getSetting(db, 'thumbs_concurrency')) || 2
+  queue = new TaskQueue(concurrency)
   queue.onDone = (assetId, ok) => {
     const a = getAsset(db, assetId)
     broadcast('thumbs:event', { assetId, status: a?.thumb_status ?? (ok ? 'ready' : 'failed') })
@@ -43,6 +59,11 @@ function bootstrapLibrary(): void {
       void ensureCategoryCatalogs(db, [root.path])
       for (const id of scanDirectory(db, root.id)) enqueueThumbnail(db, queue, id, thumbsDir)
       broadcast('assets:event', { type: 'rescan', assetId: null })
+    },
+    onSettingsChanged: (key, value) => {
+      if (key === 'thumbs_concurrency') {
+        queue.setConcurrency(Number(value) || 2)
+      }
     }
   })
 

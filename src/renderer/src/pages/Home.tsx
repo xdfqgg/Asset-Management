@@ -34,9 +34,18 @@ export default function Home(): JSX.Element {
 
   return (
     <div className="flex min-h-screen flex-col bg-background p-8">
-      <header className="mb-8">
-        <h1 className="text-2xl font-bold">AssetManagement</h1>
-        <p className="mt-1 text-sm text-muted-foreground">你的 Blender / UE 素材库</p>
+      <header className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">AssetManagement</h1>
+          <p className="mt-1 text-sm text-muted-foreground">你的 Blender / UE 素材库</p>
+        </div>
+        <button
+          onClick={() => setView('settings')}
+          className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent"
+          title="设置"
+        >
+          ⚙ 设置
+        </button>
       </header>
       <div className="grid grid-cols-3 gap-4">
         {CARDS.map((card) => (
