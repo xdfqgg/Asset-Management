@@ -1,5 +1,5 @@
-import type { Database } from 'better-sqlite3'
 import { addTag } from '../db'
+import type { Db } from '../db'
 
 // PBR（基于物理的渲染）贴图的行业命名后缀：机甲_Albedo、机甲_Normal、机甲_Roughness…
 const PBR_SUFFIXES = [
@@ -55,7 +55,7 @@ export function extractNameRoot(filename: string): string | null {
  *   （如 机甲.fbx 配 机甲_Albedo.png，让源模型文件也能进家族）
  * - 家族只剩 1 人 → 解散（删标签，级联删关联）
  */
-export function maintainSeriesTags(db: Database.Database): void {
+export function maintainSeriesTags(db: Db): void {
   // 家族成员 = name_root 等于根 的资产 ∪ 文件名（去扩展名）等于根 的资产
   const memberCount = db.prepare(
     `SELECT COUNT(*) AS c FROM assets

@@ -1,9 +1,9 @@
 import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import fs from 'node:fs'
-import type { Database } from 'better-sqlite3'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { openDb, migrate, getAsset } from './db'
+import type { Db } from './db'
 import { registerIpcHandlers } from './ipc'
 import { listRoots } from './scan/roots'
 import { scanDirectory } from './scan/ingest'
@@ -12,7 +12,7 @@ import { TaskQueue } from './thumbs/queue'
 import { enqueueThumbnail } from './thumbs/pipeline'
 import { ensureCategoryCatalogs } from './catalogs'
 
-let db: Database.Database
+let db: Db
 let queue: TaskQueue
 let thumbsDir: string
 

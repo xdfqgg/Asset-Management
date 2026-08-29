@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
-import type { Database } from 'better-sqlite3'
 import type { Root } from '../../shared/types'
+import type { Db } from '../db'
 
-export function addRoot(db: Database.Database, dir: string): Root {
+export function addRoot(db: Db, dir: string): Root {
   if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
     throw new Error(`目录不存在: ${dir}`)
   }
@@ -17,11 +17,11 @@ export function addRoot(db: Database.Database, dir: string): Root {
   return root
 }
 
-export function listRoots(db: Database.Database): Root[] {
+export function listRoots(db: Db): Root[] {
   return db.prepare('SELECT * FROM roots ORDER BY created_at').all() as Root[]
 }
 
-export function removeRoot(db: Database.Database, id: string): void {
+export function removeRoot(db: Db, id: string): void {
   db.prepare('DELETE FROM assets WHERE root_id=?').run(id)
   db.prepare('DELETE FROM roots WHERE id=?').run(id)
 }

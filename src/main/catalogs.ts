@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import type { Database } from 'better-sqlite3'
 import { getSetting, setSetting } from './db'
+import type { Db } from './db'
 
 // Blender 资产目录（asset catalogs）定义文件名——开放文本格式（调研文档 §4.3，官方规范）
 export const CDF_FILENAME = 'blender_assets.cats.txt'
@@ -45,7 +45,7 @@ const CATEGORY_CATALOGS = ['模型', '材质', '贴图', '参考图', '其他'] 
  * - 大类缺哪个补哪个；UUID 持久化在 settings 里（跨根目录复用同一个 UUID）
  * - 全都在则不动文件
  */
-export async function ensureCategoryCatalogs(db: Database.Database, rootPaths: string[]): Promise<void> {
+export async function ensureCategoryCatalogs(db: Db, rootPaths: string[]): Promise<void> {
   for (const root of rootPaths) {
     const cdfPath = path.join(root, CDF_FILENAME)
     let defs: CatalogDef[] = []

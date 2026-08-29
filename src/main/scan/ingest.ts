@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import type { Database } from 'better-sqlite3'
 import { upsertAsset, removeAssetByPath } from '../db'
+import type { Db } from '../db'
 import { categoryForExt } from '../meta/category'
 import { extractNameRoot, maintainSeriesTags } from '../meta/seriesTags'
 
@@ -11,7 +11,7 @@ import { extractNameRoot, maintainSeriesTags } from '../meta/seriesTags'
  * 返回资产 id；目录/不存在的文件返回 null。
  * watched folders 模式：文件留在原地，只建索引（设计文档 §7，Allusion 借鉴）。
  */
-export function ingestFile(db: Database.Database, rootId: string, absPath: string): string | null {
+export function ingestFile(db: Db, rootId: string, absPath: string): string | null {
   try {
     const st = fs.statSync(absPath)
     if (!st.isFile()) return null
@@ -45,7 +45,7 @@ export function ingestFile(db: Database.Database, rootId: string, absPath: strin
   }
 }
 
-export function removeAsset(db: Database.Database, rootId: string, relPath: string): void {
+export function removeAsset(db: Db, rootId: string, relPath: string): void {
   removeAssetByPath(db, rootId, relPath)
   maintainSeriesTags(db)
 }
@@ -55,7 +55,7 @@ export function removeAsset(db: Database.Database, rootId: string, relPath: stri
  * 跳过：blender_assets.cats.txt（我们自己的目录文件）、备份文件（~ 结尾）、隐藏目录、缩略图目录。
  * 返回入库的资产 id 列表。
  */
-export function scanDirectory(db: Database.Database, rootId: string): string[] {
+export function scanDirectory(db: Db, rootId: string): string[] {
   const root = db.prepare('SELECT path FROM roots WHERE id=?').get(rootId) as { path: string } | undefined
   if (!root || !fs.existsSync(root.path)) return []
   const ids: string[] = []

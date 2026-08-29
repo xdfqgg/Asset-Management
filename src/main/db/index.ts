@@ -2,6 +2,9 @@ import Database from 'better-sqlite3'
 import { randomUUID } from 'node:crypto'
 import type { AssetRow, AssetQuery, AssetMeta, Category, Tag, TagType, ThumbStatus } from '../../shared/types'
 
+/** 全项目统一使用的数据库类型别名（better-sqlite3 的 Database 接口） */
+export type Db = Database.Database
+
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS roots (
   id TEXT PRIMARY KEY,

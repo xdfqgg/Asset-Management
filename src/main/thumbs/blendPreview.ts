@@ -70,7 +70,7 @@ export async function extractBlendPreview(blendPath: string): Promise<BlendPrevi
 }
 
 /** 新版 LargeBHead8 块迭代（5.x 仅小端） */
-function parseLargeBlocks(buf: Buffer, headerSize: number): BlendPreview | null {
+async function parseLargeBlocks(buf: Buffer, headerSize: number): Promise<BlendPreview | null> {
   const HEADER = 32 // code(4)+SDNAnr(4)+old(8)+len(8)+nr(8)
   let off = headerSize
   while (off + HEADER <= buf.length) {
@@ -80,7 +80,7 @@ function parseLargeBlocks(buf: Buffer, headerSize: number): BlendPreview | null 
     const len = Number(lenBig)
     const dataOff = off + HEADER
     if (code === 'TEST' && len > 0 && dataOff + len <= buf.length) {
-      const r = decodeTestPayload(buf.subarray(dataOff, dataOff + len))
+      const r = await decodeTestPayload(buf.subarray(dataOff, dataOff + len))
       if (r) return r
     }
     off = dataOff + len
@@ -89,7 +89,7 @@ function parseLargeBlocks(buf: Buffer, headerSize: number): BlendPreview | null 
 }
 
 /** 旧版 BHead4 / SmallBHead8 块迭代 */
-function parseLegacyBlocks(buf: Buffer, ptrSize: 4 | 8, little: boolean): BlendPreview | null {
+async function parseLegacyBlocks(buf: Buffer, ptrSize: 4 | 8, little: boolean): Promise<BlendPreview | null> {
   const HEADER = 12 + ptrSize // code(4)+len(4)+old(ptrSize)+SDNAnr(4)+nr(4)
   const readU32 = (o: number): number => (little ? buf.readUInt32LE(o) : buf.readUInt32BE(o))
   let off = 12
@@ -98,7 +98,7 @@ function parseLegacyBlocks(buf: Buffer, ptrSize: 4 | 8, little: boolean): BlendP
     const len = readU32(off + 4) // 旧版块长度是 32 位
     const dataOff = off + HEADER
     if (code === 'TEST' && len > 0 && dataOff + len <= buf.length) {
-      const r = decodeTestPayload(buf.subarray(dataOff, dataOff + len))
+      const r = await decodeTestPayload(buf.subarray(dataOff, dataOff + len))
       if (r) return r
     }
     off = dataOff + len

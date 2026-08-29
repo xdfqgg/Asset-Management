@@ -1,7 +1,6 @@
 // IPC 层：主进程与渲染进程之间的「电话总机」。
 // 安全原则（设计文档 §9）：所有来自界面的参数必须白名单校验后才能进 SQL/文件系统——
 // 渲染进程的代码用户可见可改，不能信任任何输入。
-import type { Database } from 'better-sqlite3'
 import type { AssetPatch, AssetQuery, Category, Root } from '../shared/types'
 import {
   addTag,
@@ -10,18 +9,18 @@ import {
   linkAssetTag,
   listAssets,
   listAssetTags,
-  removeAssetByPath,
   setSetting,
   unlinkAssetTag,
   updateAssetCategory,
   updateAssetNotes
 } from './db'
+import type { Db } from './db'
 import { addRoot, listRoots, removeRoot } from './scan/roots'
 import { assetAbsPath } from './thumbs/pipeline'
 import { checkBlenderHealth, importToBlender } from './blender/client'
 
 export interface IpcContext {
-  db: Database.Database
+  db: Db
   broadcast: (channel: string, payload: unknown) => void
   /** 新增根目录后由主入口接管：写目录文件 + 全量扫描 + 缩略图入队 */
   onRootAdded: (root: Root) => void
@@ -57,26 +56,26 @@ export function buildAssetQuery(raw: unknown): AssetQuery {
 
 // ---------- 可测试的纯 handler（不依赖 electron 运行时） ----------
 
-export function handleRootsList(db: Database.Database): unknown {
+export function handleRootsList(db: Db): unknown {
   return listRoots(db)
 }
 
-export function handleAssetsList(db: Database.Database, raw: unknown): unknown {
+export function handleAssetsList(db: Db, raw: unknown): unknown {
   return listAssets(db, buildAssetQuery(raw))
 }
 
-export function handleAssetGet(db: Database.Database, id: unknown): unknown {
+export function handleAssetGet(db: Db, id: unknown): unknown {
   if (typeof id !== 'string' || !id) return null
   return getAsset(db, id)
 }
 
-export function handleAssetTags(db: Database.Database, id: unknown): unknown {
+export function handleAssetTags(db: Db, id: unknown): unknown {
   if (typeof id !== 'string' || !id) return []
   return listAssetTags(db, id)
 }
 
 /** 详情面板修改资产：备注/大类/挂标签/摘标签，逐字段校验 */
-export function handleAssetsUpdate(db: Database.Database, id: unknown, raw: unknown): unknown {
+export function handleAssetsUpdate(db: Db, id: unknown, raw: unknown): unknown {
   if (typeof id !== 'string' || !id) throw new Error('非法的 id')
   const p = (raw ?? {}) as Record<string, unknown>
   if (p.notes !== undefined && typeof p.notes !== 'string') throw new Error('notes 必须是字符串')
@@ -106,28 +105,28 @@ export function handleAssetsUpdate(db: Database.Database, id: unknown, raw: unkn
   return getAsset(db, id)
 }
 
-export function handleSettingsGet(db: Database.Database, key: unknown): unknown {
+export function handleSettingsGet(db: Db, key: unknown): unknown {
   if (typeof key !== 'string' || !key) return null
   return getSetting(db, key)
 }
 
-export function handleSettingsSet(db: Database.Database, key: unknown, value: unknown): void {
+export function handleSettingsSet(db: Db, key: unknown, value: unknown): void {
   if (typeof key !== 'string' || !key) throw new Error('非法的 key')
   if (typeof value !== 'string') throw new Error('value 必须是字符串')
   setSetting(db, key, value)
 }
 
-function portSetting(db: Database.Database): number {
+function portSetting(db: Db): number {
   const raw = getSetting(db, 'blender_port')
   const n = Number(raw)
   return Number.isInteger(n) && n > 0 && n < 65536 ? n : 8491
 }
 
-export async function handleBlenderHealth(db: Database.Database): Promise<boolean> {
+export async function handleBlenderHealth(db: Db): Promise<boolean> {
   return checkBlenderHealth(portSetting(db))
 }
 
-export async function handleBlenderImport(db: Database.Database, id: unknown, mode: unknown): Promise<void> {
+export async function handleBlenderImport(db: Db, id: unknown, mode: unknown): Promise<void> {
   if (typeof id !== 'string' || !id) throw new Error('非法的 id')
   if (mode !== 'link' && mode !== 'append') throw new Error('mode 必须是 link 或 append')
   const abs = assetAbsPath(db, id)

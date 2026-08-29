@@ -1,7 +1,7 @@
 import path from 'node:path'
 import sharp from 'sharp'
-import type { Database } from 'better-sqlite3'
 import { getAsset, getSetting, setThumbStatus, updateAssetMeta } from '../db'
+import type { Db } from '../db'
 import { extractBlendPreview } from './blendPreview'
 import { renderAssetWithBlender } from './renderBlender'
 import type { TaskQueue } from './queue'
@@ -11,7 +11,7 @@ const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.tga', '.tif', '.tiff', '.
 const MODEL_EXTS = new Set(['.fbx', '.obj', '.gltf', '.glb'])
 
 /** 资产在磁盘上的绝对路径（root.path + rel_path；watched folders 模式，文件留原地） */
-export function assetAbsPath(db: Database.Database, assetId: string): string | null {
+export function assetAbsPath(db: Db, assetId: string): string | null {
   const row = db
     .prepare('SELECT a.rel_path, r.path AS root FROM assets a JOIN roots r ON r.id = a.root_id WHERE a.id = ?')
     .get(assetId) as { rel_path: string; root: string } | undefined
@@ -22,7 +22,7 @@ export function assetAbsPath(db: Database.Database, assetId: string): string | n
  * 把单个资产的缩略图任务入队。协程队列异步执行：
  * pending → processing → ready（缩略图 + 元信息就位）/ failed（兜底图标，不影响其他）
  */
-export function enqueueThumbnail(db: Database.Database, queue: TaskQueue, assetId: string, thumbsDir: string): void {
+export function enqueueThumbnail(db: Db, queue: TaskQueue, assetId: string, thumbsDir: string): void {
   queue.push(assetId, async () => {
     const asset = getAsset(db, assetId)
     if (!asset) return
@@ -68,7 +68,7 @@ export function enqueueThumbnail(db: Database.Database, queue: TaskQueue, assetI
   })
 }
 
-function requireBlenderExe(db: Database.Database): string {
+function requireBlenderExe(db: Db): string {
   const exe = getSetting(db, 'blender_path')
   if (!exe) throw new Error('未配置 Blender 路径（设置页可配置）')
   return exe
