@@ -1,9 +1,10 @@
-function App(): React.JSX.Element {
-  return (
-    <div className="flex h-screen items-center justify-center bg-zinc-950 text-zinc-100">
-      <h1 className="text-2xl font-bold">AssetManagement 启动成功 🚀</h1>
-    </div>
-  )
+import { useLibrary } from './store/useLibrary'
+import Home from './pages/Home'
+import Grid from './pages/Grid'
+
+function App(): JSX.Element {
+  const view = useLibrary((s) => s.view)
+  return view === 'home' ? <Home /> : <Grid />
 }
 
 export default App

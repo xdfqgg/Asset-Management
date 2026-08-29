@@ -5,7 +5,7 @@
     "src/main/**/*",
     "src/preload/**/*",
     "src/shared/**/*",
-    "tests/**/*"
+    "tests/**/*.ts"
   ],
   "compilerOptions": {
     "composite": true,
