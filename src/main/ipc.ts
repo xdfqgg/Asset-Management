@@ -153,7 +153,7 @@ export async function handleBlenderImport(db: Db, id: unknown, mode: unknown): P
 
 export function registerIpcHandlers(ctx: IpcContext): void {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { ipcMain } = require('electron') as typeof import('electron')
+  const { ipcMain, nativeImage } = require('electron') as typeof import('electron')
   const { db } = ctx
 
   ipcMain.handle('roots:list', () => handleRootsList(db))
@@ -187,10 +187,7 @@ export function registerIpcHandlers(ctx: IpcContext): void {
     const abs = assetAbsPath(db, id)
     if (!abs) throw new Error('资产文件不存在')
     const asset = getAsset(db, id)
-    if (asset?.thumb_path && fs.existsSync(asset.thumb_path)) {
-      event.sender.startDrag({ file: abs, icon: asset.thumb_path })
-    } else {
-      event.sender.startDrag({ file: abs })
-    }
+    const icon = asset?.thumb_path && fs.existsSync(asset.thumb_path) ? asset.thumb_path : nativeImage.createEmpty()
+    event.sender.startDrag({ file: abs, icon })
   })
 }
