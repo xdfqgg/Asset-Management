@@ -1,0 +1,19 @@
+appId: com.xdfqgg.assetmanagement
+productName: AssetManagement
+directories:
+  buildResources: build
+  output: dist
+files:
+  - out/**
+  - resources/**
+asarUnpack:
+  # better-sqlite3 是原生模块（.node），必须解包运行，否则打包后 require 失败
+  - '**/*.node'
+win:
+  executableName: AssetManagement
+  target:
+    - nsis
+nsis:
+  artifactName: ${name}-${version}-setup.${ext}
+  shortcutName: ${productName}
+  createDesktopShortcut: always
