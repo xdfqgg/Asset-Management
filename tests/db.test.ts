@@ -1,5 +1,16 @@
 import { it, expect, beforeEach } from 'vitest'
-import { openDb, migrate, upsertAsset, getAsset, addTag, linkAssetTag, listAssets } from '../src/main/db'
+import {
+  openDb,
+  migrate,
+  upsertAsset,
+  getAsset,
+  addTag,
+  linkAssetTag,
+  listAssets,
+  addSmartFolder,
+  listSmartFolders,
+  removeSmartFolder
+} from '../src/main/db'
 import type { AssetRow } from '../src/shared/types'
 
 let db: ReturnType<typeof openDb>
@@ -51,6 +62,14 @@ it('按 tagIds 过滤资产（A4 回归：具名参数）', () => {
   const r = listAssets(db, { tagIds: [tag.id], limit: 20, offset: 0 })
   expect(r.total).toBe(1)
   expect(r.items[0].id).toBe('m1')
+})
+
+it('智能文件夹 CRUD（B3）', () => {
+  const f = addSmartFolder(db, '最近 30 天', JSON.stringify({ search: '机甲', limit: 60, offset: 0 }))
+  expect(listSmartFolders(db)).toHaveLength(1)
+  expect(listSmartFolders(db)[0].name).toBe('最近 30 天')
+  removeSmartFolder(db, f.id)
+  expect(listSmartFolders(db)).toHaveLength(0)
 })
 
 it('listAssets 附带每个资产的系列标签 id（供界面分组）', () => {

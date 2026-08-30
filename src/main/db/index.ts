@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3'
 import { randomUUID } from 'node:crypto'
-import type { AssetRow, AssetQuery, AssetMeta, Category, Tag, TagType, ThumbStatus } from '../../shared/types'
+import type { AssetRow, AssetQuery, AssetMeta, Category, SmartFolder, Tag, TagType, ThumbStatus } from '../../shared/types'
 
 /** 全项目统一使用的数据库类型别名（better-sqlite3 的 Database 接口） */
 export type Db = Database.Database
@@ -44,6 +44,12 @@ CREATE TABLE IF NOT EXISTS asset_tags (
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS smart_folders (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  query_json TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_assets_category ON assets(category);
 CREATE INDEX IF NOT EXISTS idx_assets_name_root ON assets(name_root);
@@ -186,6 +192,27 @@ export function listTags(db: Database.Database, type?: TagType): Tag[] {
     return db.prepare('SELECT * FROM tags WHERE type=? ORDER BY name').all(type) as Tag[]
   }
   return db.prepare('SELECT * FROM tags ORDER BY type, name').all() as Tag[]
+}
+
+// ---------- 智能文件夹（保存的搜索，B3） ----------
+
+export function listSmartFolders(db: Database.Database): SmartFolder[] {
+  return db.prepare('SELECT * FROM smart_folders ORDER BY created_at').all() as SmartFolder[]
+}
+
+export function addSmartFolder(db: Database.Database, name: string, queryJson: string): SmartFolder {
+  const folder: SmartFolder = { id: randomUUID(), name, query_json: queryJson, created_at: new Date().toISOString() }
+  db.prepare('INSERT INTO smart_folders (id, name, query_json, created_at) VALUES (?,?,?,?)').run(
+    folder.id,
+    folder.name,
+    folder.query_json,
+    folder.created_at
+  )
+  return folder
+}
+
+export function removeSmartFolder(db: Database.Database, id: string): void {
+  db.prepare('DELETE FROM smart_folders WHERE id=?').run(id)
 }
 
 // ---------- 设置 ----------

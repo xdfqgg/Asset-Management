@@ -14,7 +14,10 @@ import {
   setSetting,
   unlinkAssetTag,
   updateAssetCategory,
-  updateAssetNotes
+  updateAssetNotes,
+  addSmartFolder,
+  listSmartFolders,
+  removeSmartFolder
 } from './db'
 import type { Db } from './db'
 import { addRoot, listRoots, removeRoot } from './scan/roots'
@@ -120,6 +123,26 @@ export function handleAssetsUpdate(db: Db, id: unknown, raw: unknown): unknown {
   return getAsset(db, id)
 }
 
+// ---------- 智能文件夹（B3） ----------
+
+export function handleSmartList(db: Db): unknown {
+  return listSmartFolders(db)
+}
+
+export function handleSmartAdd(db: Db, rawName: unknown, rawQuery: unknown): unknown {
+  if (typeof rawName !== 'string' || !rawName.trim() || rawName.trim().length > 50) {
+    throw new Error('名称需为 1-50 字符的字符串')
+  }
+  const query = buildAssetQuery(rawQuery) // 保存的查询同样过白名单校验
+  return addSmartFolder(db, rawName.trim(), JSON.stringify(query))
+}
+
+export function handleSmartRemove(db: Db, id: unknown): unknown {
+  if (typeof id !== 'string' || !id) throw new Error('非法的 id')
+  removeSmartFolder(db, id)
+  return listSmartFolders(db)
+}
+
 export function handleSettingsGet(db: Db, key: unknown): unknown {
   if (typeof key !== 'string' || !key) return null
   return getSetting(db, key)
@@ -173,6 +196,9 @@ export function registerIpcHandlers(ctx: IpcContext): void {
   ipcMain.handle('assets:tags', (_e, id: unknown) => handleAssetTags(db, id))
   ipcMain.handle('tags:list', (_e, type: unknown) => handleTagsList(db, type))
   ipcMain.handle('assets:update', (_e, id: unknown, patch: unknown) => handleAssetsUpdate(db, id, patch))
+  ipcMain.handle('smart:list', () => handleSmartList(db))
+  ipcMain.handle('smart:add', (_e, name: unknown, query: unknown) => handleSmartAdd(db, name, query))
+  ipcMain.handle('smart:remove', (_e, id: unknown) => handleSmartRemove(db, id))
   ipcMain.handle('settings:get', (_e, key: unknown) => handleSettingsGet(db, key))
   ipcMain.handle('settings:set', (_e, key: unknown, value: unknown) => {
     handleSettingsSet(db, key, value)

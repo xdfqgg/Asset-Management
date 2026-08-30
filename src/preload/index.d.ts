@@ -1,5 +1,5 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
-import type { AssetRow, AssetQuery, AssetPatch, Root, Tag } from '../shared/types'
+import type { AssetRow, AssetQuery, AssetPatch, Root, SmartFolder, Tag } from '../shared/types'
 
 declare global {
   interface Window {
@@ -19,6 +19,11 @@ declare global {
       }
       tags: {
         list(type?: 'normal' | 'series'): Promise<Tag[]>
+      }
+      smart: {
+        list(): Promise<SmartFolder[]>
+        add(name: string, query: AssetQuery): Promise<SmartFolder>
+        remove(id: string): Promise<SmartFolder[]>
       }
       blender: {
         health(): Promise<boolean>

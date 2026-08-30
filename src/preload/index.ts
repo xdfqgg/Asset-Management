@@ -18,6 +18,11 @@ const api = {
   tags: {
     list: (type?: 'normal' | 'series') => ipcRenderer.invoke('tags:list', type)
   },
+  smart: {
+    list: () => ipcRenderer.invoke('smart:list'),
+    add: (name: string, query: unknown) => ipcRenderer.invoke('smart:add', name, query),
+    remove: (id: string) => ipcRenderer.invoke('smart:remove', id)
+  },
   blender: {
     health: () => ipcRenderer.invoke('blender:health'),
     import: (id: string, mode: 'link' | 'append') => ipcRenderer.invoke('blender:import', id, mode)

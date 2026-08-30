@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Category } from '@shared/types'
+import type { AssetQuery, Category, SmartFolder } from '@shared/types'
 import { am } from '../lib/am'
 import { useLibrary } from '../store/useLibrary'
 
@@ -15,7 +15,10 @@ const CARDS: { c: Category | 'all'; label: string; icon: string }[] = [
 
 export default function Home(): JSX.Element {
   const setView = useLibrary((s) => s.setView)
+  const openSmart = useLibrary((s) => s.openSmart)
   const [counts, setCounts] = useState<Record<string, number>>({})
+  const [smarts, setSmarts] = useState<SmartFolder[]>([])
+  const [smartCounts, setSmartCounts] = useState<Record<string, number>>({})
 
   useEffect(() => {
     let alive = true
@@ -26,6 +29,20 @@ export default function Home(): JSX.Element {
         map[card.c] = (await am().assets.list(q)).total
       }
       if (alive) setCounts(map)
+      // 智能文件夹（B3）：加载列表 + 每个的资产数
+      try {
+        const folders = await am().smart.list()
+        if (!alive) return
+        setSmarts(folders)
+        const sm: Record<string, number> = {}
+        for (const f of folders) {
+          const saved = JSON.parse(f.query_json) as AssetQuery
+          sm[f.id] = (await am().assets.list({ ...saved, limit: 1, offset: 0 })).total
+        }
+        if (alive) setSmartCounts(sm)
+      } catch {
+        // 旧版本 preload 没有 smart API 时静默忽略
+      }
     })()
     return () => {
       alive = false
@@ -60,6 +77,26 @@ export default function Home(): JSX.Element {
           </button>
         ))}
       </div>
+
+      {smarts.length > 0 && (
+        <section className="mt-8">
+          <h2 className="mb-3 text-sm font-medium text-muted-foreground">⭐ 智能文件夹（保存的搜索）</h2>
+          <div className="flex flex-wrap gap-3">
+            {smarts.map((f) => (
+              <button
+                key={f.id}
+                onClick={() => openSmart(f.name, JSON.parse(f.query_json) as AssetQuery)}
+                className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-3 text-sm transition-colors hover:bg-accent"
+              >
+                <span>{f.name}</span>
+                <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs text-primary">
+                  {smartCounts[f.id] ?? '…'}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   )
 }

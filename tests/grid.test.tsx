@@ -53,6 +53,27 @@ it('网格页渲染资产卡片、搜索框和系列标签筛选', async () => {
   expect(await screen.findByText(/系列:机甲/)).toBeTruthy()
 })
 
+it('保存当前搜索为智能文件夹（B3）', async () => {
+  const smartAdd = vi.fn().mockResolvedValue({ id: 'sf1', name: '最近 30 天', query_json: '{}', created_at: '' })
+  vi.stubGlobal('am', {
+    assets: {
+      list: vi.fn().mockResolvedValue({ items: [], total: 0 })
+    },
+    tags: { list: vi.fn().mockResolvedValue([]) },
+    smart: { add: smartAdd, list: vi.fn().mockResolvedValue([]), remove: vi.fn() },
+    onThumbsEvent: vi.fn().mockReturnValue(() => {}),
+    onAssetsEvent: vi.fn().mockReturnValue(() => {})
+  })
+  render(<Grid />)
+  fireEvent.click(await screen.findByRole('button', { name: /保存搜索/ }))
+  const input = await screen.findByPlaceholderText(/名称/)
+  fireEvent.change(input, { target: { value: '我的搜索' } })
+  fireEvent.click(screen.getByRole('button', { name: /^保存$/ }))
+  await vi.waitFor(() => expect(smartAdd).toHaveBeenCalled())
+  expect(smartAdd.mock.calls[0][0]).toBe('我的搜索')
+  expect(smartAdd.mock.calls[0][1]).toMatchObject({ limit: 60, offset: 0 })
+})
+
 it('分组模式把同系列文件合并成一张组卡片（材质包整合显示）', async () => {
   const base = {
     root_id: 'r1',

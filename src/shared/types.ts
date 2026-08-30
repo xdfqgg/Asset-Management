@@ -64,3 +64,11 @@ export interface AssetPatch {
   addTagNames?: string[]
   removeTagIds?: string[]
 }
+
+/** 智能文件夹（保存的搜索）：query_json 存 AssetQuery 的 JSON 形式 */
+export interface SmartFolder {
+  id: string
+  name: string
+  query_json: string
+  created_at: string
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { buildAssetQuery, handleAssetsUpdate } from '../src/main/ipc'
+import { buildAssetQuery, handleAssetsUpdate, handleSmartAdd } from '../src/main/ipc'
 import { openDb, migrate, upsertAsset, getAsset, listAssetTags } from '../src/main/db'
 import type { AssetRow } from '../src/shared/types'
 
@@ -62,5 +62,14 @@ describe('handleAssetsUpdate', () => {
 
   it('非法 patch 抛错', () => {
     expect(() => handleAssetsUpdate(db, 'a1', { notes: 123 })).toThrow()
+  })
+
+  it('智能文件夹：名称与查询校验（B3）', () => {
+    const f = handleSmartAdd(db, ' 最近 30 天 ', { search: '机甲', limit: 60, offset: 0 }) as { name: string; query_json: string }
+    expect(f.name).toBe('最近 30 天')
+    expect(JSON.parse(f.query_json)).toMatchObject({ search: '机甲' })
+    expect(() => handleSmartAdd(db, '', { limit: 10, offset: 0 })).toThrow()
+    expect(() => handleSmartAdd(db, 'x'.repeat(51), { limit: 10, offset: 0 })).toThrow()
+    expect(() => handleSmartAdd(db, '坏查询', { sort: 'evil', limit: 10, offset: 0 })).toThrow() // 查询也走白名单
   })
 })

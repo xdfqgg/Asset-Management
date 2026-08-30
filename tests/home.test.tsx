@@ -7,7 +7,8 @@ it('渲染 6 张卡片并显示数量', async () => {
   vi.stubGlobal('am', {
     assets: {
       list: vi.fn().mockResolvedValue({ items: [], total: 42 })
-    }
+    },
+    smart: { list: vi.fn().mockResolvedValue([]) }
   })
   render(<Home />)
   expect(await screen.findByText('模型')).toBeTruthy()
@@ -16,11 +17,31 @@ it('渲染 6 张卡片并显示数量', async () => {
   expect(await screen.findAllByText(/42/)).toHaveLength(6)
 })
 
+it('渲染智能文件夹（B3）', async () => {
+  vi.stubGlobal('am', {
+    assets: {
+      list: vi.fn().mockResolvedValue({ items: [], total: 7 })
+    },
+    smart: {
+      list: vi
+        .fn()
+        .mockResolvedValue([
+          { id: 'sf1', name: '最近 30 天', query_json: JSON.stringify({ limit: 60, offset: 0 }), created_at: '' }
+        ])
+    }
+  })
+  render(<Home />)
+  expect(await screen.findByText(/智能文件夹/)).toBeTruthy()
+  expect(await screen.findByText('最近 30 天')).toBeTruthy()
+  expect(await screen.findByText('7')).toBeTruthy()
+})
+
 it('点击卡片切换到对应大类视图', async () => {
   vi.stubGlobal('am', {
     assets: {
       list: vi.fn().mockResolvedValue({ items: [], total: 0 })
-    }
+    },
+    smart: { list: vi.fn().mockResolvedValue([]) }
   })
   render(<Home />)
   const btn = await screen.findByText('模型')

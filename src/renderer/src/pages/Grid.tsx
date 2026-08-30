@@ -4,6 +4,8 @@ import { am } from '../lib/am'
 import { useLibrary } from '../store/useLibrary'
 import AssetCard from '../components/AssetCard'
 import DetailDrawer from '../components/DetailDrawer'
+import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
 
 /** 搜索防抖 hook：停止输入 300ms 后才触发查询（避免每敲一个字母就查一次库） */
 export function useDebouncedSearch(onChange: (v: string) => void, delayMs = 300): { value: string; set: (v: string) => void } {
@@ -36,6 +38,7 @@ const VIEW_LABELS: Record<string, string> = {
 
 export default function Grid(): JSX.Element {
   const view = useLibrary((s) => s.view)
+  const smartName = useLibrary((s) => s.smartName)
   const setView = useLibrary((s) => s.setView)
   const items = useLibrary((s) => s.items)
   const total = useLibrary((s) => s.total)
@@ -48,6 +51,10 @@ export default function Grid(): JSX.Element {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // 分组视图（默认开）：同系列文件合并成一张组卡片——材质包整合显示（用户驱动需求）
   const [groupMode, setGroupMode] = useState(true)
+  // 保存搜索为智能文件夹（B3）
+  const [savingSearch, setSavingSearch] = useState(false)
+  const [smartFolderName, setSmartFolderName] = useState('')
+  const [savedMsg, setSavedMsg] = useState('')
 
   // 首次进入 / 视图切换：加载列表与系列标签
   useEffect(() => {
@@ -88,7 +95,7 @@ export default function Grid(): JSX.Element {
         <button onClick={() => setView('home')} className="rounded-md border border-border px-3 py-1 text-sm hover:bg-accent">
           ← 返回
         </button>
-        <h1 className="text-lg font-semibold">{VIEW_LABELS[view] ?? view}</h1>
+        <h1 className="text-lg font-semibold">{view === 'smart' ? `⭐ ${smartName}` : VIEW_LABELS[view] ?? view}</h1>
         <button
           onClick={() => setGroupMode((g) => !g)}
           className="rounded-md border border-border px-2.5 py-1 text-xs hover:bg-accent"
@@ -113,7 +120,46 @@ export default function Grid(): JSX.Element {
             className="w-24"
           />
         </label>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs"
+          onClick={() => setSavingSearch((v) => !v)}
+          title="把当前搜索条件保存为智能文件夹"
+        >
+          ⭐ 保存搜索
+        </Button>
       </div>
+
+      {savingSearch && (
+        <div className="mb-4 flex items-center gap-2">
+          <Input
+            value={smartFolderName}
+            onChange={(e) => setSmartFolderName(e.target.value)}
+            placeholder="名称，如：最近 30 天"
+            className="h-8 w-48 text-xs"
+          />
+          <Button
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => {
+              const name = smartFolderName.trim()
+              if (!name) return
+              void am()
+                .smart.add(name, query)
+                .then(() => {
+                  setSavingSearch(false)
+                  setSmartFolderName('')
+                  setSavedMsg('已保存 ✓')
+                  setTimeout(() => setSavedMsg(''), 2000)
+                })
+            }}
+          >
+            保存
+          </Button>
+          {savedMsg && <span className="text-xs text-muted-foreground">{savedMsg}</span>}
+        </div>
+      )}
 
       {seriesTags.length > 0 && (
         <div className="mb-4 flex flex-wrap items-center gap-2">
