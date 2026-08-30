@@ -123,7 +123,8 @@ export function listAssets(
     params.seriesTagId = q.seriesTagId
   }
   if (q.tagIds && q.tagIds.length > 0) {
-    const ph = q.tagIds.map(() => '?').join(',')
+    // 具名参数（better-sqlite3 对象绑定只认具名参数，匿名 ? 会抛 RangeError——审查 A4）
+    const ph = q.tagIds.map((_, i) => `@tagId${i}`).join(',')
     where.push(`a.id IN (SELECT asset_id FROM asset_tags WHERE tag_id IN (${ph}))`)
     q.tagIds.forEach((t, i) => {
       params[`tagId${i}`] = t

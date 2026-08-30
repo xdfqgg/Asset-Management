@@ -45,12 +45,18 @@ export function buildAssetQuery(raw: unknown): AssetQuery {
   if (q.category !== undefined && !CATEGORIES.includes(q.category as never)) {
     throw new Error(`非法的 category: ${String(q.category)}`)
   }
+  if (q.tagIds !== undefined) {
+    if (!Array.isArray(q.tagIds) || q.tagIds.length > 20 || q.tagIds.some((t) => typeof t !== 'string' || !t)) {
+      throw new Error('非法的 tagIds（需字符串数组且不超过 20 个）')
+    }
+  }
   const limitNum = Math.trunc(Number(q.limit))
   const offsetNum = Math.trunc(Number(q.offset))
   return {
     search: typeof q.search === 'string' && q.search.trim() ? q.search.trim().slice(0, 100) : undefined,
     category: q.category as Category | undefined,
     seriesTagId: typeof q.seriesTagId === 'string' && q.seriesTagId ? q.seriesTagId : undefined,
+    tagIds: q.tagIds as string[] | undefined,
     sort: q.sort as AssetQuery['sort'],
     dir: q.dir as AssetQuery['dir'],
     limit: Number.isFinite(limitNum) && limitNum >= 1 ? Math.min(limitNum, 500) : 60,

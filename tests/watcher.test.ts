@@ -14,6 +14,25 @@ async function waitFor(cond: () => boolean, timeoutMs = 10000): Promise<void> {
   }
 }
 
+it('前缀根目录不互相串扰（素材 vs 素材库）（A3 回归）', { timeout: 20000 }, async () => {
+  const db = openDb(':memory:')
+  migrate(db)
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'am-prefix-'))
+  const dir1 = path.join(base, '素材')
+  const dir2 = path.join(base, '素材库')
+  fs.mkdirSync(dir1)
+  fs.mkdirSync(dir2)
+  const root1 = addRoot(db, dir1)
+  const root2 = addRoot(db, dir2)
+  startWatcher(db, () => {}, { stabilityMs: 200 })
+  await whenWatcherReady()
+  fs.writeFileSync(path.join(dir2, '库里文件.png'), 'x')
+  await waitFor(() => getAssetByPath(db, root2.id, '库里文件.png') !== null)
+  expect(getAssetByPath(db, root2.id, '库里文件.png')).not.toBeNull()
+  expect(getAssetByPath(db, root1.id, '库里文件.png')).toBeNull() // 不能串到前缀根目录
+  stopWatcher()
+})
+
 it('实时监听新文件入库（含运行中添加的根目录）', { timeout: 20000 }, async () => {
   const db = openDb(':memory:')
   migrate(db)

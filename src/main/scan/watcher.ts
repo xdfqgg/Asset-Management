@@ -24,7 +24,11 @@ function norm(p: string): string {
 
 function rootOf(p: string): { id: string; path: string } | undefined {
   const n = norm(p)
-  return watchedRoots.find((r) => n.startsWith(norm(r.path)))
+  // 边界匹配（n === rn || n 以 rn/ 开头），且取最长匹配——两个根目录互为前缀时归属正确的那个
+  return watchedRoots
+    .map((r) => ({ r, rn: norm(r.path) }))
+    .filter(({ rn }) => n === rn || n.startsWith(rn + '/'))
+    .sort((a, b) => b.rn.length - a.rn.length)[0]?.r
 }
 
 /**

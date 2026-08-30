@@ -16,6 +16,14 @@ describe('buildAssetQuery（入参白名单校验）', () => {
     // 非数字 limit 回退默认 60
     expect(buildAssetQuery({ limit: 'abc', offset: 0 }).limit).toBe(60)
   })
+
+  it('tagIds 透传与校验（A4 回归）', () => {
+    const q = buildAssetQuery({ tagIds: ['t1', 't2'], limit: 10, offset: 0 })
+    expect(q.tagIds).toEqual(['t1', 't2'])
+    expect(() => buildAssetQuery({ tagIds: 't1', limit: 10, offset: 0 })).toThrow()
+    expect(() => buildAssetQuery({ tagIds: [123], limit: 10, offset: 0 })).toThrow()
+    expect(() => buildAssetQuery({ tagIds: Array.from({ length: 21 }, (_, i) => `t${i}`), limit: 10, offset: 0 })).toThrow()
+  })
 })
 
 describe('handleAssetsUpdate', () => {

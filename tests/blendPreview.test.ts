@@ -18,8 +18,7 @@ it('没有预览图的 .blend 优雅返回 null（不抛异常）', async () => 
   expect(r).toBeNull()
 })
 
-it('旧版格式（12 字节头 + 逐块 gzip 压缩）也能提取', async () => {
-  // 手工拼一个旧版 .blend：'-v400' 头 + 一个 gzip 压缩的 TEST 块
+it('旧版格式（12 字节头 + 逐块 gzip 压缩）也能提取：BHead4 与 SmallBHead8 两种', async () => {
   const zlib = await import('node:zlib')
   const w = 2
   const h = 2
@@ -28,16 +27,23 @@ it('旧版格式（12 字节头 + 逐块 gzip 压缩）也能提取', async () =
   payload.writeInt32LE(h, 4)
   for (let i = 8; i < payload.length; i++) payload[i] = 200
   const gz = zlib.gzipSync(payload)
-  const header = Buffer.from('BLENDER-v400')
-  const block = Buffer.alloc(20) // BHead4：code(4)+len(4)+old(4)+SDNAnr(4)+nr(4)
-  block.write('TEST', 0, 'ascii')
-  block.writeUInt32LE(gz.length, 4)
-  const file = Buffer.concat([header, block, gz])
-  const tmp = path.join(__dirname, 'fixtures', 'legacy-synthetic.blend')
-  fs.writeFileSync(tmp, file)
-  const r = await extractBlendPreview(tmp)
-  expect(r).not.toBeNull()
-  expect(r!.width).toBe(2)
-  expect(r!.rgba.length).toBe(16)
-  fs.unlinkSync(tmp)
+
+  // 两种自洽的旧版样本：'_'=4 字节指针配 BHead4（块头 20 字节）；'-'=8 字节指针配 SmallBHead8（块头 24 字节）
+  const cases = [
+    { header: 'BLENDER_v400', headerSize: 20 },
+    { header: 'BLENDER-v400', headerSize: 24 }
+  ]
+  for (const c of cases) {
+    const block = Buffer.alloc(c.headerSize) // code(4)+len(4)+old(ptr)+SDNAnr(4)+nr(4)
+    block.write('TEST', 0, 'ascii')
+    block.writeUInt32LE(gz.length, 4)
+    const file = Buffer.concat([Buffer.from(c.header), block, gz])
+    const tmp = path.join(__dirname, 'fixtures', `legacy-${c.headerSize}.blend`)
+    fs.writeFileSync(tmp, file)
+    const r = await extractBlendPreview(tmp)
+    expect(r, `case ${c.header}`).not.toBeNull()
+    expect(r!.width).toBe(2)
+    expect(r!.rgba.length).toBe(16)
+    fs.unlinkSync(tmp)
+  }
 })

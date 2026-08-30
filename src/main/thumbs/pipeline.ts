@@ -82,7 +82,11 @@ export function enqueueThumbnail(db: Db, queue: TaskQueue, assetId: string, thum
         } else {
           // 无内置预览（老文件/被剥过的文件）→ 回退 Blender 渲染
           const blenderExe = requireBlenderExe(db)
-          await renderAssetWithBlender(blenderExe, abs, outPng)
+          const ok = await renderAssetWithBlender(blenderExe, abs, outPng)
+          if (!ok) {
+            setThumbStatus(db, assetId, 'failed') // 渲染失败不能伪装 ready（审查 A2）
+            return
+          }
         }
         setThumbStatus(db, assetId, 'ready', outPng)
       } else if (IMAGE_EXTS.has(ext)) {
@@ -93,7 +97,11 @@ export function enqueueThumbnail(db: Db, queue: TaskQueue, assetId: string, thum
       } else if (MODEL_EXTS.has(ext)) {
         const blenderExe = requireBlenderExe(db)
         const meta = await renderAssetWithBlender(blenderExe, abs, outPng)
-        if (meta) updateAssetMeta(db, assetId, meta) // 一次 Blender 调用拿两份数据（设计文档 §6）
+        if (!meta) {
+          setThumbStatus(db, assetId, 'failed') // 渲染失败不能伪装 ready（审查 A2）
+          return
+        }
+        updateAssetMeta(db, assetId, meta) // 一次 Blender 调用拿两份数据（设计文档 §6）
         setThumbStatus(db, assetId, 'ready', outPng)
       } else {
         // 材质等不可渲染格式：借用材质包自带的预览图（同名图片 / preview.png 等惯例名）

@@ -43,6 +43,16 @@ it('按大类 + 关键词 + 标签筛选', () => {
   expect(r2.total).toBe(0)
 })
 
+it('按 tagIds 过滤资产（A4 回归：具名参数）', () => {
+  upsertAsset(db, asset({ id: 'm1' }))
+  upsertAsset(db, asset({ id: 'm2', rel_path: 'b', filename: '机甲_Albedo.png', name_root: '机甲' }))
+  const tag = addTag(db, '机甲', 'normal')
+  linkAssetTag(db, 'm1', tag.id)
+  const r = listAssets(db, { tagIds: [tag.id], limit: 20, offset: 0 })
+  expect(r.total).toBe(1)
+  expect(r.items[0].id).toBe('m1')
+})
+
 it('listAssets 附带每个资产的系列标签 id（供界面分组）', () => {
   upsertAsset(db, asset({ id: 'm1' }))
   upsertAsset(db, asset({ id: 'm2', rel_path: 'b', filename: '机甲_Albedo.png', name_root: '机甲' }))

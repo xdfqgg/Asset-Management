@@ -90,7 +90,7 @@ async function parseLargeBlocks(buf: Buffer, headerSize: number): Promise<BlendP
 
 /** 旧版 BHead4 / SmallBHead8 块迭代 */
 async function parseLegacyBlocks(buf: Buffer, ptrSize: 4 | 8, little: boolean): Promise<BlendPreview | null> {
-  const HEADER = 12 + ptrSize // code(4)+len(4)+old(ptrSize)+SDNAnr(4)+nr(4)
+  const HEADER = 16 + ptrSize // code(4)+len(4)+old(ptrSize)+SDNAnr(4)+nr(4)：BHead4=20 / SmallBHead8=24
   const readU32 = (o: number): number => (little ? buf.readUInt32LE(o) : buf.readUInt32BE(o))
   let off = 12
   while (off + HEADER <= buf.length) {

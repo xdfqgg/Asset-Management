@@ -75,6 +75,19 @@ it('FBX：走 Blender 渲染 mock，面数写入 meta', async () => {
   expect(JSON.parse(a.meta_json)).toMatchObject({ faces: 100, vertices: 80 })
 })
 
+it('渲染失败（返回 null）时标记 failed 而不是 ready（A2 回归）', async () => {
+  const { renderAssetWithBlender } = await import('../src/main/thumbs/renderBlender')
+  vi.mocked(renderAssetWithBlender).mockResolvedValueOnce(null)
+  const src = path.join(rootDir, '坏模型.fbx')
+  fs.writeFileSync(src, 'fake broken fbx')
+  const id = ingestFile(db, (db.prepare('SELECT id FROM roots').get() as { id: string }).id, src)!
+  enqueueThumbnail(db, queue, id, thumbsDir)
+  await waitDone(id)
+  const a = getAsset(db, id)!
+  expect(a.thumb_status).toBe('failed')
+  expect(fs.existsSync(a.thumb_path ?? '')).toBe(false) // 不存在的文件不该被标记 ready
+})
+
 it('未知格式：标记 failed（前端显示通用图标）', async () => {
   const src = path.join(rootDir, '音效.mp3')
   fs.writeFileSync(src, 'fake mp3')
