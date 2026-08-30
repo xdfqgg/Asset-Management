@@ -5,6 +5,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { AssetPatch, AssetQuery, Category, Root } from '../shared/types'
 import { pbrRoleOf } from './meta/pbrRoles'
+import type { PbrRole } from './meta/pbrRoles'
 import {
   addTag,
   getAsset,
@@ -185,7 +186,7 @@ export function collectSeriesTextures(db: Db, assetId: string): { path: string; 
     .all(assetId) as { filename: string; rel_path: string; root: string }[]
   return rows
     .map((row) => ({ path: path.join(row.root, row.rel_path), role: pbrRoleOf(row.filename) }))
-    .filter((t): t is { path: string; role: string } => t.role !== null)
+    .filter((t): t is { path: string; role: PbrRole } => t.role !== null)
 }
 
 export async function handleBlenderImport(db: Db, id: unknown, mode: unknown): Promise<void> {
