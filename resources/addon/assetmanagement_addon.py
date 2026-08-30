@@ -61,13 +61,36 @@ def _load_roots():
         return []
 
 
+def _normalize_base(base):
+    """去分辨率后缀：Ground103_Albedo_2K → ground103_albedo；Ground103_Normal_2048 → ground103_normal"""
+    bl = base.lower()
+    bl = re.sub(r'(_|-)\d{3,4}$', '', bl)
+    bl = re.sub(r'(_|-)\d+k$', '', bl)
+    return bl
+
+
+def _root_candidates(name_root):
+    """名字根候选链（由长到短）：Ground103_2K-JPG → Ground103_2K → Ground103——
+    兼容素材包「模型名带分辨率、贴图名不带」等命名变体"""
+    cands = [name_root]
+    for m in re.finditer(r'[_\-.]', name_root):
+        cands.append(name_root[: m.start()])
+    seen = set()
+    out = []
+    for c in cands:
+        key = c.lower()
+        if c and key not in seen:
+            seen.add(key)
+            out.append(c)
+    return out
+
+
 def _find_texture_set(name_root):
-    """B 通道：按名字根在素材根目录里搜 PBR 贴图集，返回 {role: filepath}"""
+    """按名字根在素材根目录里搜 PBR 贴图集，返回 {role: filepath}"""
     result = {}
     roots = _load_roots()
     if not roots:
         return result
-    lower = name_root.lower()
     for root in roots:
         if not os.path.isdir(root):
             continue
@@ -77,14 +100,16 @@ def _find_texture_set(name_root):
                 base, ext = os.path.splitext(fn)
                 if ext.lower() not in IMAGE_EXTS:
                     continue
-                bl = base.lower()
-                for role, suffixes in ROLE_SUFFIXES.items():
-                    if role in result:
-                        continue
-                    for s in suffixes:
-                        if bl == lower + '_' + s or bl == lower + '-' + s:
-                            result[role] = os.path.join(dirpath, fn)
-                            break
+                bl = _normalize_base(base)
+                for cand in _root_candidates(name_root):
+                    cl = cand.lower()
+                    for role, suffixes in ROLE_SUFFIXES.items():
+                        if role in result:
+                            continue
+                        for s in suffixes:
+                            if bl == cl + '_' + s or bl == cl + '-' + s:
+                                result[role] = os.path.join(dirpath, fn)
+                                break
         if len(result) >= 4:
             break
     return result
@@ -223,14 +248,59 @@ def on_depsgraph_update_post(scene, depsgraph):
         meshless.append(obj)
     if not meshless:
         return
+    roots = _load_roots()
     for obj in meshless:
         root = re.sub(r'\.\d{3}$', '', obj.name)  # 去 Blender 的 .001 等后缀
         tex = _find_texture_set(root)
         if not tex:
+            # 诊断输出：检测到了新无材质物体，但检索范围内没找到贴图——方便排查
+            print(f'[AssetManagement] 检测到无材质物体 {obj.name}（名字根 {root}），'
+                  f'但在 {len(roots)} 个素材根目录中未找到贴图集')
             continue
         mat = build_pbr_material(root + '_Material', tex)
         apply_material_to_meshless([obj], mat)
         print(f'[AssetManagement] 自动上材质: {obj.name} ← {len(tex)} 张贴图')
+
+
+# ---- 手动算子（用户需求核心）：选中模型 → Alt+Shift+T → 自动检索贴图并上材质 ----
+# 等价于 Node Wrangler「选图自动组材质」的自动化版：省掉手动选图步骤
+
+class AM_OT_smart_material(bpy.types.Operator):
+    bl_idname = 'am.smart_material'
+    bl_label = '智能上材质（自动检索贴图）'
+    bl_description = '按物体名字根从素材根目录自动检索 PBR 贴图集，生成 Principled BSDF 材质并挂给无材质的选中物体'
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return context.mode == 'OBJECT' and bool(context.selected_objects)
+
+    def execute(self, context):
+        meshes = [o for o in context.selected_objects if o.type == 'MESH']
+        if not meshes:
+            self.report({'WARNING'}, '请先选中网格物体（物体模式）')
+            return {'CANCELLED'}
+        roots = _load_roots()
+        if not roots:
+            self.report({'WARNING'}, '素材根目录清单为空——请先在 AssetManagement 应用中添加素材根目录')
+            return {'CANCELLED'}
+        applied = 0
+        skipped = []
+        for obj in meshes:
+            root = re.sub(r'\.\d{3}$', '', obj.name)
+            tex = _find_texture_set(root)
+            if not tex:
+                skipped.append(root)
+                continue
+            mat = build_pbr_material(root + '_Material', tex)
+            apply_material_to_meshless([obj], mat)
+            applied += 1
+            print(f'[AssetManagement] 智能上材质: {obj.name} ← {len(tex)} 张贴图')
+        if applied:
+            self.report({'INFO'}, f'已为 {applied} 个物体自动上材质')
+        if skipped:
+            self.report({'WARNING'}, f'未找到贴图集: {", ".join(skipped)}')
+        return {'FINISHED'}
 
 
 # ---- HTTP 服务与定时器 ----
@@ -307,18 +377,37 @@ def menu_draw(self, context):
     self.layout.label(text=f'AssetManagement 桥接: 127.0.0.1:{PORT}')
 
 
+_addon_keymaps = []
+
+
 def register():
     load_token()
     threading.Thread(target=_start_server, daemon=True).start()
     bpy.app.timers.register(_timer)
     bpy.app.handlers.depsgraph_update_post.append(on_depsgraph_update_post)
+    bpy.utils.register_class(AM_OT_smart_material)
     bpy.types.TOPBAR_MT_editor_menus.append(menu_draw)
+    # 物体菜单入口
+    def object_menu_draw(self, context):
+        self.layout.separator()
+        self.layout.operator(AM_OT_smart_material.bl_idname)
+    bpy.types.VIEW3D_MT_object.append(object_menu_draw)
+    # 快捷键 Alt+Shift+T（与 Node Wrangler 同名快捷键冲突时以先注册者生效）
+    wm = bpy.context.window_manager
+    if wm.keyconfigs.addon:
+        km = wm.keyconfigs.addon.keymaps.new(name='Object Mode', space_type='EMPTY')
+        kmi = km.keymap_items.new(AM_OT_smart_material.bl_idname, 'T', 'PRESS', alt=True, shift=True)
+        _addon_keymaps.append((km, kmi))
 
 
 def unregister():
     bpy.app.timers.unregister(_timer)
     if on_depsgraph_update_post in bpy.app.handlers.depsgraph_update_post:
         bpy.app.handlers.depsgraph_update_post.remove(on_depsgraph_update_post)
+    for km, kmi in _addon_keymaps:
+        km.keymap_items.remove(kmi)
+    _addon_keymaps.clear()
+    bpy.utils.unregister_class(AM_OT_smart_material)
     bpy.types.TOPBAR_MT_editor_menus.remove(menu_draw)
 
 
