@@ -187,7 +187,8 @@ export function registerIpcHandlers(ctx: IpcContext): void {
     const abs = assetAbsPath(db, id)
     if (!abs) throw new Error('资产文件不存在')
     const asset = getAsset(db, id)
-    const icon = asset?.thumb_path && fs.existsSync(asset.thumb_path) ? asset.thumb_path : undefined
-    event.sender.startDrag({ file: abs, icon })
+    let icon: string | undefined
+    if (asset?.thumb_path && fs.existsSync(asset.thumb_path)) icon = asset.thumb_path
+    event.sender.startDrag({ file: abs, ...(icon ? { icon } : {}) })
   })
 }
