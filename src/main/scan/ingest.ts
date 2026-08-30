@@ -4,7 +4,7 @@ import path from 'node:path'
 import { upsertAsset, removeAssetByPath, getAssetByPath } from '../db'
 import type { Db } from '../db'
 import { categoryForExt } from '../meta/category'
-import { extractNameRoot, maintainSeriesTags } from '../meta/seriesTags'
+import { extractNameRoot, scheduleMaintainSeriesTags } from '../meta/seriesTags'
 
 /**
  * 单文件入库（幂等）：解析文件信息 → upsert 进数据库 → 维护系列标签。
@@ -38,7 +38,7 @@ export function ingestFile(db: Db, rootId: string, absPath: string): string | nu
       created_at: '',
       updated_at: ''
     })
-    maintainSeriesTags(db)
+    scheduleMaintainSeriesTags(db) // 去抖批处理（审查 A5）
     // 关键：文件已存在时 upsert 只更新行、不换 id——必须按路径查回「真实 id」返回，
     // 否则返回的幻影 id 会指向不存在的资产，缩略图任务静默空转
     return getAssetByPath(db, rootId, rel)?.id ?? null
@@ -49,7 +49,7 @@ export function ingestFile(db: Db, rootId: string, absPath: string): string | nu
 
 export function removeAsset(db: Db, rootId: string, relPath: string): void {
   removeAssetByPath(db, rootId, relPath)
-  maintainSeriesTags(db)
+  scheduleMaintainSeriesTags(db) // 去抖批处理（审查 A5）
 }
 
 /**
@@ -57,12 +57,23 @@ export function removeAsset(db: Db, rootId: string, relPath: string): void {
  * 跳过：blender_assets.cats.txt（我们自己的目录文件）、备份文件（~ 结尾）、隐藏目录、缩略图目录。
  * 返回入库的资产 id 列表。
  */
-export function scanDirectory(db: Db, rootId: string): string[] {
+export function scanDirectory(
+  db: Db,
+  rootId: string,
+  hooks?: { onDir?: (absPath: string) => void }
+): string[] {
   const root = db.prepare('SELECT path FROM roots WHERE id=?').get(rootId) as { path: string } | undefined
   if (!root || !fs.existsSync(root.path)) return []
   const ids: string[] = []
   const walk = (dir: string): void => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    hooks?.onDir?.(dir)
+    let entries: fs.Dirent[]
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true })
+    } catch {
+      return // 目录在扫描中被删/权限变化（与 chokidar unlink 竞态）——容错跳过，不中断整个扫描（审查 A6）
+    }
+    for (const entry of entries) {
       const abs = path.join(dir, entry.name)
       if (entry.isDirectory()) {
         if (entry.name.startsWith('.') || entry.name.endsWith('.am-thumbs')) continue

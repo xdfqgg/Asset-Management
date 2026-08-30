@@ -19,6 +19,7 @@ export class TaskQueue {
   private running = 0
   private lowRunning = 0
   private concurrency: number
+  private runningIds = new Set<string>()
   maxLow: number
 
   onDone?: (id: string, ok: boolean) => void
@@ -29,6 +30,8 @@ export class TaskQueue {
   }
 
   push(id: string, run: () => Promise<void>, priority: Priority = 'high'): void {
+    // 同 id 去重（审查 A7）：排队中或运行中已有同 id 任务则跳过——防止 add+change 双事件并发双跑
+    if (this.runningIds.has(id) || this.high.some((i) => i.id === id) || this.low.some((i) => i.id === id)) return
     ;(priority === 'low' ? this.low : this.high).push({ id, run, priority })
     void this.pump()
   }
@@ -47,6 +50,7 @@ export class TaskQueue {
       const item = this.high.shift() ?? (this.lowRunning < this.maxLow ? this.low.shift() : undefined)
       if (!item) break
       this.running++
+      this.runningIds.add(item.id)
       if (item.priority === 'low') this.lowRunning++
       try {
         await item.run()
@@ -55,6 +59,7 @@ export class TaskQueue {
         this.onDone?.(item.id, false)
       } finally {
         this.running--
+        this.runningIds.delete(item.id)
         if (item.priority === 'low') this.lowRunning--
       }
     }

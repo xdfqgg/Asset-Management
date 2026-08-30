@@ -98,3 +98,30 @@ it('setLowConcurrency 动态调整慢车道并发', () => {
   q.setLowConcurrency(0)
   expect(q.maxLow).toBe(1)
 })
+
+it('重复 push 同 id 只执行一次（A7）', async () => {
+  const q = new TaskQueue(2, 2)
+  let runs = 0
+  const done: string[] = []
+  q.onDone = (id) => done.push(id)
+  q.push('dup', async () => {
+    runs++
+    await new Promise((r) => setTimeout(r, 20))
+  })
+  q.push('dup', async () => {
+    runs++ // 不该被执行
+  })
+  q.push('dup', async () => {
+    runs++
+  })
+  await new Promise<void>((resolve) => {
+    const poll = setInterval(() => {
+      if (done.length >= 1) {
+        clearInterval(poll)
+        resolve()
+      }
+    }, 10)
+  })
+  expect(runs).toBe(1)
+  expect(done).toHaveLength(1)
+})

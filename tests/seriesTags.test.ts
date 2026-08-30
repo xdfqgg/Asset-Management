@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { openDb, migrate, upsertAsset, getTagByName, listAssetTags } from '../src/main/db'
-import { extractNameRoot, maintainSeriesTags } from '../src/main/meta/seriesTags'
+import { extractNameRoot, maintainSeriesTags, scheduleMaintainSeriesTags, flushSeriesTags } from '../src/main/meta/seriesTags'
 import type { AssetRow } from '../src/shared/types'
 
 describe('extractNameRoot', () => {
@@ -42,6 +42,22 @@ describe('maintainSeriesTags', () => {
       updated_at: '',
       ...over
     }) as AssetRow
+
+  it('schedule 去抖合并，flush 立即执行（A5）', async () => {
+    vi.useFakeTimers()
+    upsertAsset(db, asset({ id: 'm1', filename: '机甲.fbx', ext: '.fbx', rel_path: 'a', name_root: null }))
+    upsertAsset(db, asset({ id: 'm2', filename: '机甲_Albedo.png', ext: '.png', rel_path: 'b', name_root: '机甲' }))
+    scheduleMaintainSeriesTags(db)
+    expect(getTagByName(db, '系列:机甲')).toBeNull() // 去抖期间不执行
+    await vi.advanceTimersByTimeAsync(300)
+    expect(getTagByName(db, '系列:机甲')).not.toBeNull() // 空闲后统一执行
+    // flush：立即执行（启动扫描结束/退出前）
+    db.prepare('DELETE FROM assets WHERE id=?').run('m2')
+    scheduleMaintainSeriesTags(db)
+    flushSeriesTags(db)
+    expect(getTagByName(db, '系列:机甲')).toBeNull() // 只剩一名 → 立即解散
+    vi.useRealTimers()
+  })
 
   it('两名家族成员成系列（含无后缀根文件），只剩一名时解散', () => {
     upsertAsset(db, asset({ id: 'm1', filename: '机甲.fbx', ext: '.fbx', rel_path: 'a', name_root: null }))

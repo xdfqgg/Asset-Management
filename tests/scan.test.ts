@@ -48,3 +48,23 @@ it('scanDirectory 递归扫描并跳过目录文件', () => {
   expect(getAssetByPath(db, root.id, path.join('子目录', 'b.png'))).not.toBeNull()
   expect(getAssetByPath(db, root.id, 'blender_assets.cats.txt')).toBeNull()
 })
+
+it('扫描中某子目录消失不中断整个扫描（A6）', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'am-race-'))
+  fs.writeFileSync(path.join(dir, '存在.fbx'), 'x')
+  const doomed = path.join(dir, '即将消失')
+  fs.mkdirSync(doomed)
+  fs.writeFileSync(path.join(doomed, '里面.png'), 'x')
+  const db = openDb(':memory:')
+  migrate(db)
+  const root = addRoot(db, dir)
+  // 测试钩子：walk 进入「即将消失」目录前把它删掉（模拟扫描与删除事件竞态）
+  const ids = scanDirectory(db, root.id, {
+    onDir: (abs) => {
+      if (abs === doomed) fs.rmSync(doomed, { recursive: true, force: true })
+    }
+  })
+  expect(ids).toHaveLength(1) // 只有 存在.fbx 入库
+  expect(getAssetByPath(db, root.id, '存在.fbx')).not.toBeNull()
+  // 没有抛出异常 = 目录消失被容错
+})

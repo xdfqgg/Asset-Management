@@ -10,6 +10,7 @@ import { listRoots } from './scan/roots'
 import { scanDirectory } from './scan/ingest'
 import { startWatcher, addRootToWatcher, whenWatcherReady } from './scan/watcher'
 import { registerThumbProtocol } from './thumbs/thumbProtocol'
+import { flushSeriesTags } from './meta/seriesTags'
 import { TaskQueue } from './thumbs/queue'
 import { enqueueThumbnail } from './thumbs/pipeline'
 import { ensureCategoryCatalogs } from './catalogs'
@@ -63,9 +64,10 @@ function bootstrapLibrary(): void {
     db,
     broadcast,
     onRootAdded: (root) => {
-      void ensureCategoryCatalogs(db, [root.path])
+      ensureCategoryCatalogs(db, [root.path]).catch((e) => console.error('[catalogs] 写入失败', e))
       addRootToWatcher(root.id, root.path) // 先挂监听再扫描：扫描期间的新文件事件与扫描结果幂等合并
       for (const id of scanDirectory(db, root.id)) enqueueThumbnail(db, queue, id, thumbsDir)
+      flushSeriesTags(db) // 批量扫描结束，立即维护系列标签
       broadcast('assets:event', { type: 'rescan', assetId: null })
     },
     onSettingsChanged: (key, value) => {
@@ -77,7 +79,9 @@ function bootstrapLibrary(): void {
 
   // 启动：写目录文件 → 开启监听 → 等监听就绪 → 全量扫描 → 缩略图入队
   // 顺序关键：监听必须先就绪再扫描，否则「监听基线建立期间」进入的文件会被静默漏掉
-  void ensureCategoryCatalogs(db, listRoots(db).map((r) => r.path))
+  ensureCategoryCatalogs(db, listRoots(db).map((r) => r.path)).catch((e) =>
+    console.error('[catalogs] 写入失败', e)
+  )
   startWatcher(db, (type, assetId) => {
     if ((type === 'add' || type === 'change') && assetId) {
       enqueueThumbnail(db, queue, assetId, thumbsDir, type === 'change') // 文件变更强制重做
@@ -88,8 +92,14 @@ function bootstrapLibrary(): void {
     for (const root of listRoots(db)) {
       for (const id of scanDirectory(db, root.id)) enqueueThumbnail(db, queue, id, thumbsDir)
     }
+    flushSeriesTags(db) // 全量扫描结束，立即维护系列标签（去抖期间退出也不丢）
   })
 }
+
+// 退出前同步收尾：去抖中的系列标签维护立即落库（审查 A5）
+app.on('before-quit', () => {
+  if (db) flushSeriesTags(db)
+})
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({

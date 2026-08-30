@@ -1,6 +1,35 @@
 import { addTag } from '../db'
 import type { Db } from '../db'
 
+// ---- 去抖批处理（审查 A5 性能）----
+// maintainSeriesTags 是 O(候选数×资产数) 的全表级操作，密集入库（扫描/批量变更）时
+// 每个文件都跑一遍会拖垮启动；改为 300ms 空闲后统一执行一次。
+let seriesTimer: ReturnType<typeof setTimeout> | null = null
+let seriesPendingDb: Db | null = null
+
+/** 去抖调度：合并密集事件，空闲 300ms 后统一维护系列标签 */
+export function scheduleMaintainSeriesTags(db: Db): void {
+  seriesPendingDb = db
+  if (seriesTimer) return
+  seriesTimer = setTimeout(() => {
+    seriesTimer = null
+    const d = seriesPendingDb
+    seriesPendingDb = null
+    if (d) maintainSeriesTags(d)
+  }, 300)
+  seriesTimer.unref?.() // 不阻止进程退出
+}
+
+/** 立即执行并取散去抖（启动扫描结束、应用退出前调用） */
+export function flushSeriesTags(db: Db): void {
+  if (seriesTimer) {
+    clearTimeout(seriesTimer)
+    seriesTimer = null
+  }
+  seriesPendingDb = null
+  maintainSeriesTags(db)
+}
+
 // PBR（基于物理的渲染）贴图的行业命名后缀：机甲_Albedo、机甲_Normal、机甲_Roughness…
 const PBR_SUFFIXES = [
   'albedo',
