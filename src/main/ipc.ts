@@ -2,7 +2,9 @@
 // 安全原则（设计文档 §9）：所有来自界面的参数必须白名单校验后才能进 SQL/文件系统——
 // 渲染进程的代码用户可见可改，不能信任任何输入。
 import fs from 'node:fs'
+import path from 'node:path'
 import type { AssetPatch, AssetQuery, Category, Root } from '../shared/types'
+import { pbrRoleOf } from './meta/pbrRoles'
 import {
   addTag,
   getAsset,
@@ -29,6 +31,8 @@ export interface IpcContext {
   broadcast: (channel: string, payload: unknown) => void
   /** 新增根目录后由主入口接管：写目录文件 + 全量扫描 + 缩略图入队 */
   onRootAdded: (root: Root) => void
+  /** 根目录增删后同步（写 roots.txt 给插件做自动上材质） */
+  onRootsChanged?: () => void
   /** 设置变更回调（如并发数热更新队列） */
   onSettingsChanged?: (key: string, value: string) => void
 }
@@ -164,12 +168,33 @@ export async function handleBlenderHealth(db: Db): Promise<boolean> {
   return checkBlenderHealth(portSetting(db))
 }
 
+/** 收集资产所在系列的 PBR 贴图清单（自动上材质 A 通道） */
+export function collectSeriesTextures(db: Db, assetId: string): { path: string; role: string }[] {
+  const rows = db
+    .prepare(
+      `SELECT a.filename, a.rel_path, r.path AS root FROM assets a
+       JOIN roots r ON r.id = a.root_id
+       WHERE a.id IN (
+         SELECT at.asset_id FROM asset_tags at
+         WHERE at.tag_id IN (
+           SELECT at2.tag_id FROM asset_tags at2 JOIN tags t ON t.id = at2.tag_id
+           WHERE at2.asset_id = ? AND t.type='series'
+         )
+       )`
+    )
+    .all(assetId) as { filename: string; rel_path: string; root: string }[]
+  return rows
+    .map((row) => ({ path: path.join(row.root, row.rel_path), role: pbrRoleOf(row.filename) }))
+    .filter((t): t is { path: string; role: string } => t.role !== null)
+}
+
 export async function handleBlenderImport(db: Db, id: unknown, mode: unknown): Promise<void> {
   if (typeof id !== 'string' || !id) throw new Error('非法的 id')
   if (mode !== 'link' && mode !== 'append') throw new Error('mode 必须是 link 或 append')
   const abs = assetAbsPath(db, id)
   if (!abs) throw new Error('资产文件不存在')
-  await importToBlender(portSetting(db), abs, mode, getSetting(db, 'blender_token') ?? undefined)
+  const textures = collectSeriesTextures(db, id) // 自动上材质：把系列贴图随指令发给插件
+  await importToBlender(portSetting(db), abs, mode, getSetting(db, 'blender_token') ?? undefined, textures)
 }
 
 // ---------- 注册到 electron（仅运行时调用，测试环境不触碰） ----------
@@ -189,6 +214,7 @@ export function registerIpcHandlers(ctx: IpcContext): void {
   ipcMain.handle('roots:remove', (_e, id: unknown) => {
     if (typeof id !== 'string' || !id) throw new Error('非法的 id')
     removeRoot(db, id)
+    ctx.onRootsChanged?.()
     return listRoots(db)
   })
   ipcMain.handle('assets:list', (_e, q: unknown) => handleAssetsList(db, q))

@@ -12,18 +12,24 @@ export async function checkBlenderHealth(port: number): Promise<boolean> {
   }
 }
 
+export interface TextureRef {
+  path: string
+  role: string
+}
+
 export async function importToBlender(
   port: number,
   filePath: string,
   mode: 'link' | 'append',
-  token?: string
+  token?: string,
+  textures?: TextureRef[]
 ): Promise<void> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (token) headers['X-AssetManagement-Token'] = token // 插件校验（审查 A9）
   const res = await fetch(`http://127.0.0.1:${port}/import`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ path: filePath, mode }),
+    body: JSON.stringify({ path: filePath, mode, textures: textures ?? [] }),
     signal: AbortSignal.timeout(10000)
   })
   if (res.status !== 200 && res.status !== 202) {

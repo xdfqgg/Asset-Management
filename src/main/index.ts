@@ -31,6 +31,15 @@ function broadcast(channel: string, payload: unknown): void {
   }
 }
 
+/** 把素材根目录清单写给插件（自动上材质 B 通道：插件按名字根在清单里搜贴图） */
+function writeRootsFile(): void {
+  try {
+    fs.writeFileSync(join(app.getPath('userData'), 'roots.txt'), JSON.stringify(listRoots(db).map((r) => r.path)))
+  } catch (e) {
+    console.error('[roots.txt] 写入失败', e)
+  }
+}
+
 /** 打开数据库：失败时自动用最新备份恢复再重试（设计文档 §9） */
 function openDbSafely(dbPath: string, backupsDir: string): Db {
   try {
@@ -81,8 +90,10 @@ function bootstrapLibrary(): void {
       addRootToWatcher(root.id, root.path) // 先挂监听再扫描：扫描期间的新文件事件与扫描结果幂等合并
       for (const id of scanDirectory(db, root.id)) enqueueThumbnail(db, queue, id, thumbsDir)
       flushSeriesTags(db) // 批量扫描结束，立即维护系列标签
+      writeRootsFile() // 同步给插件（自动上材质）
       broadcast('assets:event', { type: 'rescan', assetId: null })
     },
+    onRootsChanged: () => writeRootsFile(),
     onSettingsChanged: (key, value) => {
       if (key === 'thumbs_concurrency') {
         queue.setLowConcurrency(Number(value) || 2)
@@ -106,6 +117,7 @@ function bootstrapLibrary(): void {
       for (const id of scanDirectory(db, root.id)) enqueueThumbnail(db, queue, id, thumbsDir)
     }
     flushSeriesTags(db) // 全量扫描结束，立即维护系列标签（去抖期间退出也不丢）
+    writeRootsFile() // 启动时同步根目录清单（自动上材质）
   })
 }
 

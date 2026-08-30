@@ -13,7 +13,9 @@ it('health 与 import 请求正确，且 import 带 token header（A9）', async
       let b = ''
       req.on('data', (d) => (b += d))
       req.on('end', () => {
-        expect(JSON.parse(b).mode).toBe('append')
+        const body = JSON.parse(b)
+        expect(body.mode).toBe('append')
+        expect(body.textures).toEqual([{ path: 'F:/机甲_Albedo.png', role: 'albedo' }]) // 自动上材质载荷
         res.statusCode = 202
         res.end()
       })
@@ -24,7 +26,7 @@ it('health 与 import 请求正确，且 import 带 token header（A9）', async
   })
   await new Promise<void>((r) => server.listen(18491, r))
   expect(await checkBlenderHealth(18491)).toBe(true)
-  await importToBlender(18491, 'F:/t.fbx', 'append', 'test-token')
+  await importToBlender(18491, 'F:/t.fbx', 'append', 'test-token', [{ path: 'F:/机甲_Albedo.png', role: 'albedo' }])
   server.close()
 })
 
