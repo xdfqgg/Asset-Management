@@ -100,7 +100,7 @@ export default function DetailDrawer({
               <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-muted">
                 {asset.thumb_status === 'ready' && asset.thumb_path ? (
                   <img
-                    src={`file:///${asset.thumb_path.replace(/\\/g, '/')}`}
+                    src={`thumb://local/${asset.id}.png`}
                     alt={asset.filename}
                     className="h-full w-full object-contain"
                   />

@@ -13,8 +13,8 @@ export default function AssetCard({
 }): JSX.Element {
   const [imgFailed, setImgFailed] = useState(false)
 
-  // 缩略图是本机文件，走 file:// 协议（CSP 已放行 file:）；Windows 路径反斜杠要转成斜杠
-  const thumbUrl = asset.thumb_path ? `file:///${asset.thumb_path.replace(/\\/g, '/')}` : null
+  // 缩略图走 thumb:// 自定义协议（开发模式页面是 http://，Chromium 禁止 file:// 子资源）
+  const thumbUrl = asset.thumb_status === 'ready' && asset.thumb_path ? `thumb://local/${asset.id}.png` : null
 
   return (
     <div

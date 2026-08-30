@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, protocol } from 'electron'
 import { join } from 'path'
 import fs from 'node:fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -9,6 +9,7 @@ import { registerIpcHandlers } from './ipc'
 import { listRoots } from './scan/roots'
 import { scanDirectory } from './scan/ingest'
 import { startWatcher, addRootToWatcher, whenWatcherReady } from './scan/watcher'
+import { registerThumbProtocol } from './thumbs/thumbProtocol'
 import { TaskQueue } from './thumbs/queue'
 import { enqueueThumbnail } from './thumbs/pipeline'
 import { ensureCategoryCatalogs } from './catalogs'
@@ -16,6 +17,11 @@ import { ensureCategoryCatalogs } from './catalogs'
 let db: Db
 let queue: TaskQueue
 let thumbsDir: string
+
+// 自定义协议必须在 app ready 之前注册特权（Electron 硬性要求）
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'thumb', privileges: { standard: false, secure: true, supportFetchAPI: true, stream: true } }
+])
 
 function broadcast(channel: string, payload: unknown): void {
   for (const w of BrowserWindow.getAllWindows()) {
@@ -40,6 +46,7 @@ function bootstrapLibrary(): void {
   const backupsDir = join(userData, 'backups')
   const dbPath = join(userData, 'library.db')
   fs.mkdirSync(thumbsDir, { recursive: true })
+  registerThumbProtocol(thumbsDir)
 
   db = openDbSafely(dbPath, backupsDir)
   migrate(db)

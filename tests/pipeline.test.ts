@@ -111,6 +111,19 @@ it('材质文件借用惯例名预览图（preview.png）', async () => {
   expect(getAsset(db, id)!.thumb_status).toBe('ready')
 })
 
+it('材质文件借用前缀匹配的预览图（Ground103_2K-JPG.mtlx ← Ground103.png）', async () => {
+  const src = path.join(rootDir, 'Ground103_2K-JPG.mtlx')
+  fs.writeFileSync(src, 'fake mtlx')
+  // 材质包的常见形态：纹理图是材质文件名的前缀
+  await sharp({ create: { width: 64, height: 64, channels: 3, background: 'purple' } })
+    .png()
+    .toFile(path.join(rootDir, 'Ground103.png'))
+  const id = ingestFile(db, (db.prepare('SELECT id FROM roots').get() as { id: string }).id, src)!
+  enqueueThumbnail(db, queue, id, thumbsDir)
+  await waitDone(id)
+  expect(getAsset(db, id)!.thumb_status).toBe('ready')
+})
+
 it('已有缩略图的资产默认跳过重做；force 时强制重做', async () => {
   const img = path.join(rootDir, '已有图.png')
   await sharp({ create: { width: 32, height: 32, channels: 3, background: 'red' } }).png().toFile(img)

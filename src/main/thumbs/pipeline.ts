@@ -23,8 +23,12 @@ const PREVIEW_NAMES = ['preview', 'thumbnail', 'thumb', 'cover', 'image']
 export function findPreviewImage(absPath: string): string | null {
   const dir = path.dirname(absPath)
   const base = path.basename(absPath, path.extname(absPath))
+  // 前缀链（由长到短）：Ground103_2K-JPG → Ground103_2K → Ground103——材质包常见形态：
+  // 材质名 = 纹理名 + 分辨率后缀，按分隔符逐级截短找同名图片
+  const cuts = [...base.matchAll(/[_\-.]/g)].map((m) => m.index as number)
+  const prefixes = [base, ...cuts.map((i) => base.slice(0, i))].filter((p) => p.length >= 2)
   const candidates = [
-    ...[...IMAGE_EXTS].map((e) => path.join(dir, base + e)),
+    ...prefixes.flatMap((p) => [...IMAGE_EXTS].map((e) => path.join(dir, p + e))),
     ...PREVIEW_NAMES.flatMap((n) => [...IMAGE_EXTS].map((e) => path.join(dir, n + e)))
   ]
   for (const c of candidates) {
