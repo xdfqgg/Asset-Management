@@ -1,0 +1,17 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+  <rect x="24" y="24" width="464" height="464" rx="104" fill="url(#bg)"/>
+  <!-- 等距立方体线框（3D 资产的象征） -->
+  <g fill="none" stroke="#ffffff" stroke-width="16" stroke-linejoin="round" opacity="0.95">
+    <path d="M256 132 L372 198 L372 338 L256 404 L140 338 L140 198 Z"/>
+    <path d="M140 198 L256 264 L372 198"/>
+    <path d="M256 264 L256 404"/>
+  </g>
+  <!-- 素材小卡（缩略图集合的象征） -->
+  <rect x="360" y="108" width="52" height="52" rx="12" fill="#fbbf24"/>
+</svg>

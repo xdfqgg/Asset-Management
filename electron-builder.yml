@@ -11,6 +11,8 @@ asarUnpack:
   - '**/*.node'
 win:
   executableName: AssetManagement
+  # electron-builder 会自动把 512px PNG 转成 .ico
+  icon: build/icon.png
   target:
     - nsis
 nsis:
