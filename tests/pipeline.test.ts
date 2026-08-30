@@ -110,3 +110,20 @@ it('材质文件借用惯例名预览图（preview.png）', async () => {
   await waitDone(id)
   expect(getAsset(db, id)!.thumb_status).toBe('ready')
 })
+
+it('已有缩略图的资产默认跳过重做；force 时强制重做', async () => {
+  const img = path.join(rootDir, '已有图.png')
+  await sharp({ create: { width: 32, height: 32, channels: 3, background: 'red' } }).png().toFile(img)
+  const rootId = (db.prepare('SELECT id FROM roots').get() as { id: string }).id
+  const id = ingestFile(db, rootId, img)!
+  enqueueThumbnail(db, queue, id, thumbsDir)
+  await waitDone(id)
+  expect(queue.size()).toBe(0)
+  // 默认：跳过，不入队
+  enqueueThumbnail(db, queue, id, thumbsDir)
+  expect(queue.size()).toBe(0)
+  // force：重新入队
+  enqueueThumbnail(db, queue, id, thumbsDir, true)
+  expect(queue.size()).toBeGreaterThan(0)
+  await waitDone(id)
+})

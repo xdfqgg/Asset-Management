@@ -19,6 +19,20 @@ it('ingestFile 入库并在删除事件后移除', () => {
   expect(getAssetByPath(db, root.id, '机甲.fbx')).toBeNull()
 })
 
+it('重复 ingest 同一文件返回同一个资产 id（重启扫描的回归测试）', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'am-dup-'))
+  const f = path.join(dir, '机甲.fbx')
+  fs.writeFileSync(f, 'x'.repeat(100))
+  const db = openDb(':memory:')
+  migrate(db)
+  const root = addRoot(db, dir)
+  const id1 = ingestFile(db, root.id, f)
+  const id2 = ingestFile(db, root.id, f) // 模拟重启后的全量扫描
+  expect(id1).not.toBeNull()
+  expect(id2).toBe(id1) // 幻影 id bug：以前这里会返回一个新 UUID，指向不存在的资产
+  expect((db.prepare('SELECT COUNT(*) c FROM assets').get() as { c: number }).c).toBe(1)
+})
+
 it('scanDirectory 递归扫描并跳过目录文件', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'am-scan-'))
   fs.writeFileSync(path.join(dir, 'a.fbx'), 'x')

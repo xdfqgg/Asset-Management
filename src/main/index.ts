@@ -73,7 +73,7 @@ function bootstrapLibrary(): void {
   void ensureCategoryCatalogs(db, listRoots(db).map((r) => r.path))
   startWatcher(db, (type, assetId) => {
     if ((type === 'add' || type === 'change') && assetId) {
-      enqueueThumbnail(db, queue, assetId, thumbsDir)
+      enqueueThumbnail(db, queue, assetId, thumbsDir, type === 'change') // 文件变更强制重做
     }
     broadcast('assets:event', { type, assetId })
   })

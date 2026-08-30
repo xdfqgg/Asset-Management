@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import { upsertAsset, removeAssetByPath } from '../db'
+import { upsertAsset, removeAssetByPath, getAssetByPath } from '../db'
 import type { Db } from '../db'
 import { categoryForExt } from '../meta/category'
 import { extractNameRoot, maintainSeriesTags } from '../meta/seriesTags'
@@ -39,7 +39,9 @@ export function ingestFile(db: Db, rootId: string, absPath: string): string | nu
       updated_at: ''
     })
     maintainSeriesTags(db)
-    return id
+    // 关键：文件已存在时 upsert 只更新行、不换 id——必须按路径查回「真实 id」返回，
+    // 否则返回的幻影 id 会指向不存在的资产，缩略图任务静默空转
+    return getAssetByPath(db, rootId, rel)?.id ?? null
   } catch {
     return null
   }

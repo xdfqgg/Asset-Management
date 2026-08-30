@@ -49,9 +49,12 @@ export function assetAbsPath(db: Db, assetId: string): string | null {
  * 把单个资产的缩略图任务入队。协程队列异步执行：
  * pending → processing → ready（缩略图 + 元信息就位）/ failed（兜底图标，不影响其他）
  */
-export function enqueueThumbnail(db: Db, queue: TaskQueue, assetId: string, thumbsDir: string): void {
+export function enqueueThumbnail(db: Db, queue: TaskQueue, assetId: string, thumbsDir: string, force = false): void {
   const asset = getAsset(db, assetId)
-  const priority = asset && MODEL_EXTS.has(asset.ext.toLowerCase()) ? 'low' : 'high'
+  if (!asset) return
+  // 已有缩略图的资产默认跳过重做（重启扫描不重复劳动）；文件变更事件用 force 强制重做
+  if (!force && asset.thumb_status === 'ready' && asset.thumb_path && fs.existsSync(asset.thumb_path)) return
+  const priority = MODEL_EXTS.has(asset.ext.toLowerCase()) ? 'low' : 'high'
   queue.push(assetId, async () => {
     const asset = getAsset(db, assetId)
     if (!asset) return
