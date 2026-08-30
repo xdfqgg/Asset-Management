@@ -117,7 +117,11 @@ export function listAssets(
   const where: string[] = []
   const params: Record<string, unknown> = {}
   if (q.search) {
-    where.push('a.filename LIKE @search')
+    // 搜索升级（B4）：命中文件名 / 备注 / 标签名三处
+    where.push(
+      `(a.filename LIKE @search OR a.notes LIKE @search OR a.id IN
+        (SELECT at.asset_id FROM asset_tags at JOIN tags t ON t.id = at.tag_id WHERE t.name LIKE @search))`
+    )
     params.search = `%${q.search}%`
   }
   if (q.category) {

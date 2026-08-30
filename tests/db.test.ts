@@ -54,6 +54,19 @@ it('按大类 + 关键词 + 标签筛选', () => {
   expect(r2.total).toBe(0)
 })
 
+it('搜索命中标签名与备注（B4）', () => {
+  upsertAsset(db, asset({ id: 'm1', notes: '' }))
+  upsertAsset(db, asset({ id: 'm2', rel_path: 'b', filename: '墙.fbx', notes: '赛博朋克风格' }))
+  const tag = addTag(db, '硬表面', 'normal')
+  linkAssetTag(db, 'm1', tag.id)
+  // 按标签名搜
+  expect(listAssets(db, { search: '硬表面', limit: 20, offset: 0 }).total).toBe(1)
+  // 按备注搜
+  expect(listAssets(db, { search: '赛博朋克', limit: 20, offset: 0 }).total).toBe(1)
+  // 按文件名搜（原能力）
+  expect(listAssets(db, { search: '墙', limit: 20, offset: 0 }).total).toBe(1)
+})
+
 it('按 tagIds 过滤资产（A4 回归：具名参数）', () => {
   upsertAsset(db, asset({ id: 'm1' }))
   upsertAsset(db, asset({ id: 'm2', rel_path: 'b', filename: '机甲_Albedo.png', name_root: '机甲' }))
