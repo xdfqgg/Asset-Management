@@ -1,6 +1,6 @@
 {
   "name": "assetmanagement",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Blender/UE 资产管理桌面软件",
   "main": "./out/main/index.js",
   "author": "xdfqgg",
@@ -14,7 +14,7 @@
     "test:watch": "vitest",
     "rebuild:electron": "cd node_modules/better-sqlite3 && prebuild-install --runtime=electron --target=33.4.11",
     "rebuild:node": "npm rebuild better-sqlite3",
-    "smoke": "vitest run e2e/smoke.spec.ts",
+    "smoke": "vitest run --config e2e/vitest.smoke.config.ts",
     "dist:win": "npm run build && electron-builder --win"
   },
   "dependencies": {

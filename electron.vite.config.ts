@@ -8,7 +8,8 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()]
   },
   preload: {
-    plugins: [externalizeDepsPlugin()]
+    // 不外部化依赖：sandbox: true 的 preload 不能 require 外部模块，必须全打包（A10）
+    plugins: []
   },
   renderer: {
     resolve: {

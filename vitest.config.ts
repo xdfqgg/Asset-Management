@@ -16,7 +16,7 @@ export default defineConfig({
   test: {
     // 开启全局 API（describe/it/expect 无需 import）+ 让 @testing-library/react 的自动清理生效
     globals: true,
-    // e2e 冒烟测试需要 Electron ABI + 构建产物，不进默认单测跑（用 npm run smoke 单独跑）
+    // e2e 冒烟测试需要 Electron ABI + 构建产物，排除出默认单测（npm run smoke 用独立配置跑）
     exclude: ['e2e/**', '**/node_modules/**', '**/dist/**', '**/out/**']
   }
 })
