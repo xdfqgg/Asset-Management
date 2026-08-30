@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 import sharp from 'sharp'
 import { getAsset, getSetting, setThumbStatus, updateAssetMeta } from '../db'
@@ -7,8 +8,34 @@ import { renderAssetWithBlender } from './renderBlender'
 import type { TaskQueue } from './queue'
 
 // 分层缩略图策略（设计文档 §6）：.blend 提取内置预览 / 图片 sharp 缩放 / 模型 Blender 渲染 / 其他图标
+// 快车道（图片、提取、借用预览）与慢车道（Blender 渲染）分离——图片不再排在渲染后面干等
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.tga', '.tif', '.tiff', '.exr', '.hdr', '.webp', '.bmp'])
 const MODEL_EXTS = new Set(['.fbx', '.obj', '.gltf', '.glb'])
+
+// 材质包惯例预览图文件名（如 preview.png、thumbnail.jpg）
+const PREVIEW_NAMES = ['preview', 'thumbnail', 'thumb', 'cover', 'image']
+
+/**
+ * 预览图借用：材质文件（.sbsar/.mat 等 Blender 也渲染不了的格式）通常和预览图放在一起——
+ * 先找同名图片（机甲.sbsar → 机甲.png），再找 preview/thumbnail 等惯例名。
+ * 找到就借用；找不到返回 null（走通用图标）。
+ */
+export function findPreviewImage(absPath: string): string | null {
+  const dir = path.dirname(absPath)
+  const base = path.basename(absPath, path.extname(absPath))
+  const candidates = [
+    ...[...IMAGE_EXTS].map((e) => path.join(dir, base + e)),
+    ...PREVIEW_NAMES.flatMap((n) => [...IMAGE_EXTS].map((e) => path.join(dir, n + e)))
+  ]
+  for (const c of candidates) {
+    try {
+      if (fs.existsSync(c) && fs.statSync(c).isFile()) return c
+    } catch {
+      // 继续找下一个
+    }
+  }
+  return null
+}
 
 /** 资产在磁盘上的绝对路径（root.path + rel_path；watched folders 模式，文件留原地） */
 export function assetAbsPath(db: Db, assetId: string): string | null {
@@ -23,6 +50,8 @@ export function assetAbsPath(db: Db, assetId: string): string | null {
  * pending → processing → ready（缩略图 + 元信息就位）/ failed（兜底图标，不影响其他）
  */
 export function enqueueThumbnail(db: Db, queue: TaskQueue, assetId: string, thumbsDir: string): void {
+  const asset = getAsset(db, assetId)
+  const priority = asset && MODEL_EXTS.has(asset.ext.toLowerCase()) ? 'low' : 'high'
   queue.push(assetId, async () => {
     const asset = getAsset(db, assetId)
     if (!asset) return
@@ -60,12 +89,19 @@ export function enqueueThumbnail(db: Db, queue: TaskQueue, assetId: string, thum
         if (meta) updateAssetMeta(db, assetId, meta) // 一次 Blender 调用拿两份数据（设计文档 §6）
         setThumbStatus(db, assetId, 'ready', outPng)
       } else {
-        setThumbStatus(db, assetId, 'failed') // 其他格式：前端渲染通用文件图标
+        // 材质等不可渲染格式：借用材质包自带的预览图（同名图片 / preview.png 等惯例名）
+        const preview = findPreviewImage(abs)
+        if (preview) {
+          await sharp(preview).resize(512, 512, { fit: 'cover' }).png().toFile(outPng)
+          setThumbStatus(db, assetId, 'ready', outPng)
+        } else {
+          setThumbStatus(db, assetId, 'failed') // 都没有：前端渲染通用文件图标
+        }
       }
     } catch {
       setThumbStatus(db, assetId, 'failed')
     }
-  })
+  }, priority)
 }
 
 function requireBlenderExe(db: Db): string {

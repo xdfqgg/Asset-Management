@@ -83,3 +83,30 @@ it('未知格式：标记 failed（前端显示通用图标）', async () => {
   await waitDone(id)
   expect(getAsset(db, id)!.thumb_status).toBe('failed')
 })
+
+it('材质文件借用同文件夹的预览图（同名图片）', async () => {
+  const src = path.join(rootDir, '机甲材质.sbsar')
+  fs.writeFileSync(src, 'fake sbsar')
+  // 材质包惯例：同名预览图放在一起
+  await sharp({ create: { width: 64, height: 64, channels: 3, background: 'blue' } })
+    .png()
+    .toFile(path.join(rootDir, '机甲材质.png'))
+  const id = ingestFile(db, (db.prepare('SELECT id FROM roots').get() as { id: string }).id, src)!
+  enqueueThumbnail(db, queue, id, thumbsDir)
+  await waitDone(id)
+  const a = getAsset(db, id)!
+  expect(a.thumb_status).toBe('ready')
+  expect(fs.existsSync(a.thumb_path!)).toBe(true)
+})
+
+it('材质文件借用惯例名预览图（preview.png）', async () => {
+  const src = path.join(rootDir, '墙体.sbsar')
+  fs.writeFileSync(src, 'fake sbsar')
+  await sharp({ create: { width: 64, height: 64, channels: 3, background: 'green' } })
+    .png()
+    .toFile(path.join(rootDir, 'preview.png'))
+  const id = ingestFile(db, (db.prepare('SELECT id FROM roots').get() as { id: string }).id, src)!
+  enqueueThumbnail(db, queue, id, thumbsDir)
+  await waitDone(id)
+  expect(getAsset(db, id)!.thumb_status).toBe('ready')
+})

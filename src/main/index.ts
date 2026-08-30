@@ -46,7 +46,7 @@ function bootstrapLibrary(): void {
   backupDatabase(dbPath, backupsDir, 3) // 每次启动自动备份
 
   const concurrency = Number(getSetting(db, 'thumbs_concurrency')) || 2
-  queue = new TaskQueue(concurrency)
+  queue = new TaskQueue(6, concurrency) // 快车道 6（图片秒过）、慢车道按设置（Blender 渲染）
   queue.onDone = (assetId, ok) => {
     const a = getAsset(db, assetId)
     broadcast('thumbs:event', { assetId, status: a?.thumb_status ?? (ok ? 'ready' : 'failed') })
@@ -63,7 +63,7 @@ function bootstrapLibrary(): void {
     },
     onSettingsChanged: (key, value) => {
       if (key === 'thumbs_concurrency') {
-        queue.setConcurrency(Number(value) || 2)
+        queue.setLowConcurrency(Number(value) || 2)
       }
     }
   })
