@@ -69,16 +69,18 @@ export async function extractBlendPreview(blendPath: string): Promise<BlendPrevi
   return parseLargeBlocks(buf, headerSize)
 }
 
-/** 新版 LargeBHead8 块迭代（5.x 仅小端） */
-async function parseLargeBlocks(buf: Buffer, headerSize: number): Promise<BlendPreview | null> {
-  const HEADER = 32 // code(4)+SDNAnr(4)+old(8)+len(8)+nr(8)
-  let off = headerSize
-  while (off + HEADER <= buf.length) {
+/** 统一的块迭代器（审查 A11：合并新旧版两处 95% 相同的循环，布局差异参数化） */
+async function iterateBlocks(
+  buf: Buffer,
+  startOffset: number,
+  layout: { headerSize: number; readLen: (off: number) => number }
+): Promise<BlendPreview | null> {
+  let off = startOffset
+  while (off + layout.headerSize <= buf.length) {
     const code = buf.toString('ascii', off, off + 4)
-    const lenBig = buf.readBigUInt64LE(off + 16)
-    if (lenBig > BigInt(buf.length)) return null
-    const len = Number(lenBig)
-    const dataOff = off + HEADER
+    const len = layout.readLen(off)
+    if (len < 0 || len > buf.length) return null
+    const dataOff = off + layout.headerSize
     if (code === 'TEST' && len > 0 && dataOff + len <= buf.length) {
       const r = await decodeTestPayload(buf.subarray(dataOff, dataOff + len))
       if (r) return r
@@ -88,22 +90,21 @@ async function parseLargeBlocks(buf: Buffer, headerSize: number): Promise<BlendP
   return null
 }
 
-/** 旧版 BHead4 / SmallBHead8 块迭代 */
-async function parseLegacyBlocks(buf: Buffer, ptrSize: 4 | 8, little: boolean): Promise<BlendPreview | null> {
-  const HEADER = 16 + ptrSize // code(4)+len(4)+old(ptrSize)+SDNAnr(4)+nr(4)：BHead4=20 / SmallBHead8=24
+/** 新版 LargeBHead8 块迭代（5.x 仅小端）：code(4)+SDNAnr(4)+old(8)+len(8)+nr(8) */
+function parseLargeBlocks(buf: Buffer, headerSize: number): Promise<BlendPreview | null> {
+  return iterateBlocks(buf, headerSize, {
+    headerSize: 32,
+    readLen: (off) => Number(buf.readBigUInt64LE(off + 16))
+  })
+}
+
+/** 旧版 BHead4 / SmallBHead8 块迭代：code(4)+len(4)+old(ptrSize)+SDNAnr(4)+nr(4)，BHead4=20 / SmallBHead8=24 */
+function parseLegacyBlocks(buf: Buffer, ptrSize: 4 | 8, little: boolean): Promise<BlendPreview | null> {
   const readU32 = (o: number): number => (little ? buf.readUInt32LE(o) : buf.readUInt32BE(o))
-  let off = 12
-  while (off + HEADER <= buf.length) {
-    const code = buf.toString('ascii', off, off + 4)
-    const len = readU32(off + 4) // 旧版块长度是 32 位
-    const dataOff = off + HEADER
-    if (code === 'TEST' && len > 0 && dataOff + len <= buf.length) {
-      const r = await decodeTestPayload(buf.subarray(dataOff, dataOff + len))
-      if (r) return r
-    }
-    off = dataOff + len
-  }
-  return null
+  return iterateBlocks(buf, 12, {
+    headerSize: 16 + ptrSize,
+    readLen: (off) => readU32(off + 4) // 旧版块长度是 32 位
+  })
 }
 
 /** TEST 块数据：可能被 gzip/zstd 压缩（旧版逐块压缩），解压后 = 宽 + 高 + RGBA */

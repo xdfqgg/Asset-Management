@@ -123,7 +123,7 @@ function createWindow(): void {
     title: 'AssetManagement',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: true // 审查 A10：preload 只用 contextBridge/ipcRenderer，无 Node 需求，收紧攻击面
     }
   })
 
