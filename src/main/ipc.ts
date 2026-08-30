@@ -146,7 +146,7 @@ export async function handleBlenderImport(db: Db, id: unknown, mode: unknown): P
   if (mode !== 'link' && mode !== 'append') throw new Error('mode 必须是 link 或 append')
   const abs = assetAbsPath(db, id)
   if (!abs) throw new Error('资产文件不存在')
-  await importToBlender(portSetting(db), abs, mode)
+  await importToBlender(portSetting(db), abs, mode, getSetting(db, 'blender_token') ?? undefined)
 }
 
 // ---------- 注册到 electron（仅运行时调用，测试环境不触碰） ----------

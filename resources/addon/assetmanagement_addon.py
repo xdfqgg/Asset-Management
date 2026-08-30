@@ -16,12 +16,25 @@ bl_info = {
 import bpy
 import json
 import os
+import pathlib
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 PORT = 8491
 # HTTP 线程 → 主线程的指令队列
 _pending = []  # {"path": str, "mode": str, "event": threading.Event, "error": [str]}
+
+# 认证 token（审查 A9）：桌面应用首启生成并写入 %APPDATA%\assetmanagement\blender_token.txt
+TOKEN_FILE = os.path.join(os.environ.get('APPDATA', ''), 'assetmanagement', 'blender_token.txt')
+_token = None
+
+
+def load_token():
+    global _token
+    try:
+        _token = pathlib.Path(TOKEN_FILE).read_text(encoding='utf-8').strip()
+    except OSError:
+        _token = None
 
 
 def instantiate_top_collections(collections, scene):
@@ -93,6 +106,11 @@ class Handler(BaseHTTPRequestHandler):
         if self.path != '/import':
             self._reply(404, {'ok': False, 'error': 'not found'})
             return
+        # 认证（审查 A9）：任何本机进程都能访问本服务，必须校验共享 token
+        provided = self.headers.get('X-AssetManagement-Token', '')
+        if not _token or provided != _token:
+            self._reply(401, {'ok': False, 'error': '未授权：请先启动 AssetManagement 桌面应用生成令牌'})
+            return
         try:
             length = int(self.headers.get('Content-Length', 0))
             data = json.loads(self.rfile.read(length) or b'{}')
@@ -126,6 +144,7 @@ def menu_draw(self, context):
 
 
 def register():
+    load_token()
     threading.Thread(target=_start_server, daemon=True).start()
     bpy.app.timers.register(_timer)
     bpy.types.TOPBAR_MT_editor_menus.append(menu_draw)

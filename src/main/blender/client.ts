@@ -12,10 +12,17 @@ export async function checkBlenderHealth(port: number): Promise<boolean> {
   }
 }
 
-export async function importToBlender(port: number, filePath: string, mode: 'link' | 'append'): Promise<void> {
+export async function importToBlender(
+  port: number,
+  filePath: string,
+  mode: 'link' | 'append',
+  token?: string
+): Promise<void> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (token) headers['X-AssetManagement-Token'] = token // 插件校验（审查 A9）
   const res = await fetch(`http://127.0.0.1:${port}/import`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ path: filePath, mode }),
     signal: AbortSignal.timeout(10000)
   })

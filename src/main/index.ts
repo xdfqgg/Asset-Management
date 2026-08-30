@@ -1,8 +1,9 @@
 import { app, shell, BrowserWindow, protocol } from 'electron'
 import { join } from 'path'
 import fs from 'node:fs'
+import { randomBytes } from 'node:crypto'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import { openDb, migrate, getAsset, getSetting } from './db'
+import { openDb, migrate, getAsset, getSetting, setSetting } from './db'
 import type { Db } from './db'
 import { backupDatabase, restoreLatestBackup } from './db/backup'
 import { registerIpcHandlers } from './ipc'
@@ -52,6 +53,18 @@ function bootstrapLibrary(): void {
   db = openDbSafely(dbPath, backupsDir)
   migrate(db)
   backupDatabase(dbPath, backupsDir, 3) // 每次启动自动备份
+
+  // 插件认证 token（审查 A9）：首启生成，存 settings + 写约定文件给插件读取
+  let token = getSetting(db, 'blender_token')
+  if (!token) {
+    token = randomBytes(32).toString('hex')
+    setSetting(db, 'blender_token', token)
+  }
+  try {
+    fs.writeFileSync(join(userData, 'blender_token.txt'), token)
+  } catch {
+    // token 文件写入失败只影响插件认证，不影响其他功能
+  }
 
   const concurrency = Number(getSetting(db, 'thumbs_concurrency')) || 2
   queue = new TaskQueue(6, concurrency) // 快车道 6（图片秒过）、慢车道按设置（Blender 渲染）
