@@ -19,6 +19,8 @@ export interface AssetRow {
   thumb_status: ThumbStatus
   created_at: string
   updated_at: string
+  /** 列表查询时附带的系列标签 id（同系列文件分组的依据），单查可能不存在 */
+  series_tag_id?: string | null
 }
 
 export interface Tag {

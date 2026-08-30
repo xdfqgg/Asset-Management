@@ -136,7 +136,12 @@ export function listAssets(
   const col = order === 'name' ? 'filename' : order
   const dir = q.dir === 'desc' ? 'DESC' : 'ASC'
   const items = db
-    .prepare(`SELECT * FROM assets a ${w} ORDER BY a.${col} ${dir} LIMIT @limit OFFSET @offset`)
+    .prepare(
+      `SELECT a.*,
+        (SELECT at.tag_id FROM asset_tags at JOIN tags t ON t.id = at.tag_id
+          WHERE at.asset_id = a.id AND t.type='series' LIMIT 1) AS series_tag_id
+       FROM assets a ${w} ORDER BY a.${col} ${dir} LIMIT @limit OFFSET @offset`
+    )
     .all({ ...params, limit: q.limit, offset: q.offset }) as AssetRow[]
   const total = (db.prepare(`SELECT COUNT(*) AS c FROM assets a ${w}`).get(params) as { c: number }).c
   return { items, total }

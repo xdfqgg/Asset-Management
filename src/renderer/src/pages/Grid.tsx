@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Tag } from '@shared/types'
+import type { AssetRow, Tag } from '@shared/types'
 import { am } from '../lib/am'
 import { useLibrary } from '../store/useLibrary'
 import AssetCard from '../components/AssetCard'
@@ -46,6 +46,8 @@ export default function Grid(): JSX.Element {
   const [thumbSize, setThumbSize] = useState(160)
   const [seriesTags, setSeriesTags] = useState<Tag[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // 分组视图（默认开）：同系列文件合并成一张组卡片——材质包整合显示（用户驱动需求）
+  const [groupMode, setGroupMode] = useState(true)
 
   // 首次进入 / 视图切换：加载列表与系列标签
   useEffect(() => {
@@ -87,6 +89,13 @@ export default function Grid(): JSX.Element {
           ← 返回
         </button>
         <h1 className="text-lg font-semibold">{VIEW_LABELS[view] ?? view}</h1>
+        <button
+          onClick={() => setGroupMode((g) => !g)}
+          className="rounded-md border border-border px-2.5 py-1 text-xs hover:bg-accent"
+          title="同系列文件合并为一张卡片"
+        >
+          {groupMode ? '📚 已分组' : '🗂 单文件'}
+        </button>
         <input
           value={onSearch.value}
           onChange={(e) => onSearch.set(e.target.value)}
@@ -137,6 +146,17 @@ export default function Grid(): JSX.Element {
           <span className="text-5xl">🗂</span>
           <p>这里还空着——去首页添加素材文件夹，或在设置里管理根目录</p>
         </div>
+      ) : groupMode ? (
+        <GroupedGrid
+          items={items}
+          thumbSize={thumbSize}
+          tagName={(id) => seriesTags.find((t) => t.id === id)?.name ?? `系列:${id}`}
+          onOpenGroup={(tagId) => {
+            setGroupMode(false) // 点组卡片 = 进入该系列的平铺视图（复用系列筛选）
+            onPickSeries(tagId)
+          }}
+          onOpenAsset={setSelectedId}
+        />
       ) : (
         <div className="flex flex-wrap gap-3">
           {items.map((a) => (
@@ -152,6 +172,68 @@ export default function Grid(): JSX.Element {
       )}
 
       <DetailDrawer assetId={selectedId} open={selectedId !== null} onClose={() => setSelectedId(null)} onOpenAsset={setSelectedId} />
+    </div>
+  )
+}
+
+/** 分组视图：同系列（series_tag_id 相同）的文件合并为一张组卡片；无系列的文件单张显示 */
+function GroupedGrid({
+  items,
+  thumbSize,
+  tagName,
+  onOpenGroup,
+  onOpenAsset
+}: {
+  items: AssetRow[]
+  thumbSize: number
+  tagName: (id: string) => string
+  onOpenGroup: (tagId: string) => void
+  onOpenAsset: (id: string) => void
+}): JSX.Element {
+  const groups = new Map<string, AssetRow[]>()
+  const singles: AssetRow[] = []
+  for (const a of items) {
+    if (a.series_tag_id) {
+      const list = groups.get(a.series_tag_id) ?? []
+      list.push(a)
+      groups.set(a.series_tag_id, list)
+    } else {
+      singles.push(a)
+    }
+  }
+  return (
+    <div className="flex flex-wrap gap-3">
+      {[...groups.entries()].map(([tagId, members]) => {
+        const rep = members.find((m) => m.thumb_status === 'ready' && m.thumb_path) ?? members[0]
+        return (
+          <button
+            key={tagId}
+            onClick={() => onOpenGroup(tagId)}
+            className="overflow-hidden rounded-lg border border-border bg-card text-left transition-colors hover:border-ring"
+            style={{ width: thumbSize }}
+            title="点击展开该系列的全部文件"
+          >
+            <div className="flex aspect-square items-center justify-center overflow-hidden bg-muted">
+              {rep.thumb_status === 'ready' && rep.thumb_path ? (
+                <img src={`thumb://local/${rep.id}.png`} alt={tagName(tagId)} className="h-full w-full object-cover" />
+              ) : (
+                <span className="text-4xl">🔗</span>
+              )}
+            </div>
+            <div className="flex items-center justify-between gap-1 px-2 py-1.5">
+              <span className="truncate text-xs" title={tagName(tagId)}>
+                {tagName(tagId).replace(/^系列:/, '')}
+              </span>
+              <span className="shrink-0 rounded-full bg-primary/15 px-1.5 text-[10px] text-primary">
+                {members.length}
+              </span>
+            </div>
+          </button>
+        )
+      })}
+      {singles.map((a) => (
+        <AssetCard key={a.id} asset={a} size={thumbSize} onClick={() => onOpenAsset(a.id)} />
+      ))}
     </div>
   )
 }

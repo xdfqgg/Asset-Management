@@ -42,3 +42,14 @@ it('按大类 + 关键词 + 标签筛选', () => {
   const r2 = listAssets(db, { category: 'texture', limit: 20, offset: 0 })
   expect(r2.total).toBe(0)
 })
+
+it('listAssets 附带每个资产的系列标签 id（供界面分组）', () => {
+  upsertAsset(db, asset({ id: 'm1' }))
+  upsertAsset(db, asset({ id: 'm2', rel_path: 'b', filename: '机甲_Albedo.png', name_root: '机甲' }))
+  const tag = addTag(db, '系列:机甲', 'series')
+  linkAssetTag(db, 'm1', tag.id)
+  linkAssetTag(db, 'm2', tag.id)
+  const r = listAssets(db, { limit: 20, offset: 0 })
+  expect(r.items.find((i) => i.id === 'm1')!.series_tag_id).toBe(tag.id)
+  expect(r.items.find((i) => i.id === 'm2')!.series_tag_id).toBe(tag.id)
+})
