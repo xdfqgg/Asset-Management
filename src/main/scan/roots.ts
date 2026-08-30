@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
+import path from 'node:path'
 import type { Root } from '../../shared/types'
 import type { Db } from '../db'
 
@@ -7,7 +8,8 @@ export function addRoot(db: Db, dir: string): Root {
   if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
     throw new Error(`目录不存在: ${dir}`)
   }
-  const root: Root = { id: randomUUID(), path: dir, enabled: true, created_at: new Date().toISOString() }
+  // 归一化存储：resolve 成原生绝对路径，后续拼接/匹配/监听都基于同一形态
+  const root: Root = { id: randomUUID(), path: path.resolve(dir), enabled: true, created_at: new Date().toISOString() }
   db.prepare('INSERT INTO roots (id, path, enabled, created_at) VALUES (?,?,?,?)').run(
     root.id,
     root.path,

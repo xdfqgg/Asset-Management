@@ -4,23 +4,53 @@ import { ingestFile, removeAsset } from './ingest'
 import type { Db } from '../db'
 
 let watcher: FSWatcher | null = null
+// 运行期间可增长的根目录列表（新增根目录要动态挂进监听——否则新根目录里的新文件没人盯）
+let watchedRoots: { id: string; path: string }[] = []
+let readyResolvers: (() => void)[] = []
+
+/** 监听器基线扫描完成（ready）后 resolve——就绪前写入的文件会被 chokidar 当作「初始文件」忽略 */
+export function whenWatcherReady(): Promise<void> {
+  return watcher
+    ? new Promise<void>((resolve) => {
+        readyResolvers.push(resolve)
+      })
+    : Promise.resolve()
+}
+
+// Windows 路径归一化：大小写不敏感 + 斜杠统一，避免「路径写法不同导致匹配失败」
+function norm(p: string): string {
+  return path.resolve(p).replace(/\\/g, '/').toLowerCase()
+}
+
+function rootOf(p: string): { id: string; path: string } | undefined {
+  const n = norm(p)
+  return watchedRoots.find((r) => n.startsWith(norm(r.path)))
+}
 
 /**
  * 启动文件监听（chokidar）：
- * - awaitWriteFinish：大文件还在拷贝中就触发 add 会读到半个文件，等 2 秒稳定再入库（避坑清单）
+ * - awaitWriteFinish：大文件还在拷贝中就触发 add 会读到半个文件，等稳定再入库（避坑清单）
  * - ignoreInitial：启动时不做全量扫描（全量扫描由调用方单独跑一遍）
  */
-export function startWatcher(db: Db, onEvent: (type: 'add' | 'change' | 'unlink', assetId: string | null) => void): void {
-  const roots = db.prepare('SELECT * FROM roots WHERE enabled=1').all() as { id: string; path: string }[]
+export function startWatcher(
+  db: Db,
+  onEvent: (type: 'add' | 'change' | 'unlink', assetId: string | null) => void,
+  opts: { stabilityMs?: number } = {}
+): void {
+  const { stabilityMs = 2000 } = opts
+  watchedRoots = db.prepare('SELECT id, path FROM roots WHERE enabled=1').all() as { id: string; path: string }[]
   watcher = chokidar.watch(
-    roots.map((r) => r.path),
+    watchedRoots.map((r) => r.path),
     {
       ignoreInitial: true,
-      awaitWriteFinish: { stabilityThreshold: 2000, pollInterval: 200 }
+      awaitWriteFinish: { stabilityThreshold: stabilityMs, pollInterval: 200 }
     }
   )
 
-  const rootOf = (p: string) => roots.find((r) => p.startsWith(r.path))
+  watcher.on('ready', () => {
+    for (const r of readyResolvers) r()
+    readyResolvers = []
+  })
 
   watcher.on('add', (p) => {
     const root = rootOf(p)
@@ -39,7 +69,15 @@ export function startWatcher(db: Db, onEvent: (type: 'add' | 'change' | 'unlink'
   })
 }
 
+/** 运行中添加根目录时调用：把新路径挂进 chokidar，实时监听立即生效 */
+export function addRootToWatcher(rootId: string, rootPath: string): void {
+  watchedRoots.push({ id: rootId, path: rootPath })
+  watcher?.add(rootPath)
+}
+
 export function stopWatcher(): void {
   watcher?.close()
   watcher = null
+  watchedRoots = []
+  readyResolvers = []
 }

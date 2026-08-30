@@ -8,7 +8,7 @@ import { backupDatabase, restoreLatestBackup } from './db/backup'
 import { registerIpcHandlers } from './ipc'
 import { listRoots } from './scan/roots'
 import { scanDirectory } from './scan/ingest'
-import { startWatcher } from './scan/watcher'
+import { startWatcher, addRootToWatcher, whenWatcherReady } from './scan/watcher'
 import { TaskQueue } from './thumbs/queue'
 import { enqueueThumbnail } from './thumbs/pipeline'
 import { ensureCategoryCatalogs } from './catalogs'
@@ -57,6 +57,7 @@ function bootstrapLibrary(): void {
     broadcast,
     onRootAdded: (root) => {
       void ensureCategoryCatalogs(db, [root.path])
+      addRootToWatcher(root.id, root.path) // 先挂监听再扫描：扫描期间的新文件事件与扫描结果幂等合并
       for (const id of scanDirectory(db, root.id)) enqueueThumbnail(db, queue, id, thumbsDir)
       broadcast('assets:event', { type: 'rescan', assetId: null })
     },
@@ -67,16 +68,19 @@ function bootstrapLibrary(): void {
     }
   })
 
-  // 启动：给每个根目录写 Blender 目录文件（互通）→ 全量扫描 → 缩略图入队 → 开启实时监听
+  // 启动：写目录文件 → 开启监听 → 等监听就绪 → 全量扫描 → 缩略图入队
+  // 顺序关键：监听必须先就绪再扫描，否则「监听基线建立期间」进入的文件会被静默漏掉
   void ensureCategoryCatalogs(db, listRoots(db).map((r) => r.path))
-  for (const root of listRoots(db)) {
-    for (const id of scanDirectory(db, root.id)) enqueueThumbnail(db, queue, id, thumbsDir)
-  }
   startWatcher(db, (type, assetId) => {
     if ((type === 'add' || type === 'change') && assetId) {
       enqueueThumbnail(db, queue, assetId, thumbsDir)
     }
     broadcast('assets:event', { type, assetId })
+  })
+  void whenWatcherReady().then(() => {
+    for (const root of listRoots(db)) {
+      for (const id of scanDirectory(db, root.id)) enqueueThumbnail(db, queue, id, thumbsDir)
+    }
   })
 }
 
