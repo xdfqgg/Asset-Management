@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { AssetRow } from '@shared/types'
+import { am } from '../lib/am'
 
 // 资产卡片：缩略图（带状态占位）+ 文件名
 export default function AssetCard({
@@ -21,6 +22,13 @@ export default function AssetCard({
       className="cursor-pointer overflow-hidden rounded-lg border border-border bg-card transition-colors hover:border-ring"
       style={{ width: size }}
       onClick={onClick}
+      draggable
+      title={`${asset.filename}（点击查看详情，可拖进 Blender 视口导入）`}
+      onDragStart={(e) => {
+        // B2：发起 OS 级文件拖拽——拖到 Blender 视口松手即导入
+        e.preventDefault()
+        void am().startDrag(asset.id)
+      }}
     >
       <div className="flex aspect-square items-center justify-center overflow-hidden bg-muted">
         {asset.thumb_status === 'ready' && thumbUrl && !imgFailed ? (

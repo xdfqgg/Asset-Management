@@ -180,4 +180,14 @@ export function registerIpcHandlers(ctx: IpcContext): void {
   })
   ipcMain.handle('blender:health', () => handleBlenderHealth(db))
   ipcMain.handle('blender:import', (_e, id: unknown, mode: unknown) => handleBlenderImport(db, id, mode))
+  ipcMain.handle('assets:start-drag', (event, id: unknown) => {
+    // OS 级文件拖拽（B2）：Blender 原生支持把文件从资源管理器拖进视口直接导入，
+    // 这里让应用内卡片也能发起同样的拖拽
+    if (typeof id !== 'string' || !id) throw new Error('非法的 id')
+    const abs = assetAbsPath(db, id)
+    if (!abs) throw new Error('资产文件不存在')
+    const asset = getAsset(db, id)
+    const icon = asset?.thumb_path && fs.existsSync(asset.thumb_path) ? asset.thumb_path : undefined
+    event.sender.startDrag({ file: abs, icon })
+  })
 }
