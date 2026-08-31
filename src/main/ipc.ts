@@ -252,7 +252,8 @@ export function registerIpcHandlers(ctx: IpcContext): void {
     if (!files && !abs) throw new Error('资产文件不存在')
     const asset = getAsset(db, id)
     const icon = asset?.thumb_path && fs.existsSync(asset.thumb_path) ? asset.thumb_path : nativeImage.createEmpty()
-    const item = files ? { file: files, icon } : { file: abs as string, icon }
+    // Electron 的 Item 类型：单文件用 file，多文件用 files（后者覆盖前者）
+    const item = files ? { files, icon } : { file: abs as string, icon }
     event.sender.startDrag(item)
   })
 }
