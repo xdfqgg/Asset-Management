@@ -85,15 +85,13 @@ def _root_candidates(name_root):
     return out
 
 
-def _find_texture_set(name_root):
-    """按名字根在素材根目录里搜 PBR 贴图集，返回 {role: filepath}"""
+def _find_texture_set(name_root, extra_dirs=None):
+    """按名字根搜 PBR 贴图集，返回 {role: filepath}。
+    搜索顺序：extra_dirs（如同文件夹，材质包惯例）优先，再搜素材根目录清单"""
     result = {}
-    roots = _load_roots()
-    if not roots:
-        return result
-    for root in roots:
-        if not os.path.isdir(root):
-            continue
+    dirs = [d for d in (extra_dirs or []) if d and os.path.isdir(d)]
+    dirs += [r for r in _load_roots() if r and os.path.isdir(r)]
+    for root in dirs:
         for dirpath, dirnames, filenames in os.walk(root):
             dirnames[:] = [d for d in dirnames if not d.startswith('.')]
             for fn in filenames:
@@ -113,6 +111,17 @@ def _find_texture_set(name_root):
         if len(result) >= 4:
             break
     return result
+
+
+def _name_root_from_path(filepath):
+    """从贴图文件名反推名字根：Ground103_Albedo_2K.png → Ground103"""
+    base = _normalize_base(os.path.splitext(os.path.basename(filepath))[0])
+    for role, suffixes in ROLE_SUFFIXES.items():
+        for s in suffixes:
+            if base.endswith('_' + s) or base.endswith('-' + s):
+                base = base[: -(len(s) + 1)]
+                break
+    return re.sub(r'[_\-.\s]+$', '', base)
 
 
 def build_pbr_material(name, textures):
@@ -262,7 +271,98 @@ def on_depsgraph_update_post(scene, depsgraph):
         print(f'[AssetManagement] 自动上材质: {obj.name} ← {len(tex)} 张贴图')
 
 
-# ---- 手动算子（用户需求核心）：选中模型 → Alt+Shift+T → 自动检索贴图并上材质 ----
+# ---- 拖材质上模型（用户需求核心）：把贴图拖到选中模型 / 材质编辑器 → 自动生成 PBR 材质并应用 ----
+
+def assign_material(obj, material):
+    """把材质「赋予」网格：替换原有所有材质槽（拖材质上模型 = 换成这套）"""
+    mesh = obj.data
+    mesh.materials.clear()
+    mesh.materials.append(material)
+
+
+class AM_OT_apply_dropped_material(bpy.types.Operator):
+    """FileHandler 调用的算子：处理被拖进视口/材质编辑器的贴图文件"""
+    bl_idname = 'am.apply_dropped_material'
+    bl_label = '把拖入的贴图生成材质并应用'
+    bl_options = {'REGISTER', 'UNDO'}
+
+    # 多文件拖放（应用侧拖整组贴图时走这两个属性）
+    directory: bpy.props.StringProperty(subtype='DIR_PATH', options={'SKIP_SAVE', 'HIDDEN'})
+    files: bpy.props.CollectionProperty(type=bpy.types.OperatorFileListElement, options={'SKIP_SAVE', 'HIDDEN'})
+    # 单文件拖放（FileHandler 单文件模式走这个）
+    filepath: bpy.props.StringProperty(subtype='FILE_PATH', options={'SKIP_SAVE'})
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def execute(self, context):
+        # 1) 收集拖入的文件
+        dropped = []
+        if self.directory and self.files:
+            dropped = [os.path.join(self.directory, f.name) for f in self.files]
+        elif getattr(self, 'filepath', ''):
+            dropped = [self.filepath]
+        if not dropped:
+            return {'CANCELLED'}
+
+        # 2) 目标：视口里选中的网格；或材质编辑器上下文里的物体
+        targets = []
+        if context.area and context.area.type == 'VIEW_3D':
+            targets = [o for o in context.selected_objects if o.type == 'MESH']
+        elif context.area and context.area.ui_type == 'ShaderNodeTree':
+            if context.object and context.object.type == 'MESH':
+                targets = [context.object]
+        if not targets:
+            self.report({'WARNING'}, '先选中一个模型，或打开模型的材质编辑器再拖')
+            return {'CANCELLED'}
+
+        # 3) 由拖入的文件识别 PBR 角色；缺的角色在「同文件夹优先、素材根目录兜底」里补齐
+        textures = {}
+        for p in dropped:
+            base = _normalize_base(os.path.splitext(os.path.basename(p))[0])
+            for role, suffixes in ROLE_SUFFIXES.items():
+                if role in textures:
+                    continue
+                for s in suffixes:
+                    if base.endswith('_' + s) or base.endswith('-' + s):
+                        textures[role] = p
+                        break
+        root = _name_root_from_path(dropped[0])
+        if root and len(textures) < len(ROLE_SUFFIXES):
+            found = _find_texture_set(root, extra_dirs=[os.path.dirname(dropped[0])])
+            for role, p in found.items():
+                textures.setdefault(role, p)
+        if not textures:
+            self.report({'WARNING'}, '拖入的文件里没有识别到 PBR 贴图角色')
+            return {'CANCELLED'}
+
+        # 4) 生成材质并赋予
+        mat = build_pbr_material(root + '_Material' if root else 'Dropped_Material', textures)
+        for obj in targets:
+            assign_material(obj, mat)
+        self.report({'INFO'}, f'已把材质 {mat.name} 应用到 {len(targets)} 个物体')
+        print(f'[AssetManagement] 拖放上材质: {mat.name} ← {len(textures)} 张贴图 → {[o.name for o in targets]}')
+        return {'FINISHED'}
+
+
+class AM_FH_texture_drop(bpy.types.FileHandler):
+    bl_idname = 'AM_FH_texture_drop'
+    bl_label = 'AssetManagement 贴图拖放（上材质）'
+    bl_import_operator = 'am.apply_dropped_material'
+    bl_file_extensions = ';'.join(sorted(IMAGE_EXTS))  # '.png;.jpg;...'
+
+    @classmethod
+    def poll_drop(cls, context):
+        # 视口：需要有选中的网格（拖到模型上）；材质编辑器：有上下文物体（拖到材质面板）
+        if context.area and context.area.type == 'VIEW_3D':
+            return any(o.type == 'MESH' for o in context.selected_objects)
+        if context.area and context.area.ui_type == 'ShaderNodeTree':
+            return context.object is not None and context.object.type == 'MESH'
+        return False
+
+
+# ---- 手动算子：选中模型 → Alt+Shift+T → 自动检索贴图并上材质 ----
 # 等价于 Node Wrangler「选图自动组材质」的自动化版：省掉手动选图步骤
 
 class AM_OT_smart_material(bpy.types.Operator):
@@ -386,6 +486,8 @@ def register():
     bpy.app.timers.register(_timer)
     bpy.app.handlers.depsgraph_update_post.append(on_depsgraph_update_post)
     bpy.utils.register_class(AM_OT_smart_material)
+    bpy.utils.register_class(AM_OT_apply_dropped_material)
+    bpy.utils.register_class(AM_FH_texture_drop)
     bpy.types.TOPBAR_MT_editor_menus.append(menu_draw)
     # 物体菜单入口
     def object_menu_draw(self, context):
@@ -408,6 +510,8 @@ def unregister():
         km.keymap_items.remove(kmi)
     _addon_keymaps.clear()
     bpy.utils.unregister_class(AM_OT_smart_material)
+    bpy.utils.unregister_class(AM_OT_apply_dropped_material)
+    bpy.utils.unregister_class(AM_FH_texture_drop)
     bpy.types.TOPBAR_MT_editor_menus.remove(menu_draw)
 
 

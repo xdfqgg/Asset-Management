@@ -30,6 +30,7 @@ declare global {
         import(id: string, mode: 'link' | 'append'): Promise<void>
       }
       startDrag(id: string): Promise<void>
+      startDragSet(id: string): Promise<void>
       settings: {
         get(key: string): Promise<string | null>
         set(key: string, value: string): Promise<void>

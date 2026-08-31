@@ -28,6 +28,7 @@ const api = {
     import: (id: string, mode: 'link' | 'append') => ipcRenderer.invoke('blender:import', id, mode)
   },
   startDrag: (id: string) => ipcRenderer.invoke('assets:start-drag', id),
+  startDragSet: (id: string) => ipcRenderer.invoke('assets:start-drag-set', id),
   settings: {
     get: (key: string) => ipcRenderer.invoke('settings:get', key),
     set: (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value)

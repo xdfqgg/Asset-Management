@@ -243,4 +243,15 @@ export function registerIpcHandlers(ctx: IpcContext): void {
     const icon = asset?.thumb_path && fs.existsSync(asset.thumb_path) ? asset.thumb_path : nativeImage.createEmpty()
     event.sender.startDrag({ file: abs, icon })
   })
+  ipcMain.handle('assets:start-drag-set', (event, id: unknown) => {
+    // 组卡片拖拽 = 拖整套 PBR 贴图（多文件 OS 拖拽，供「拖材质上模型」用）
+    if (typeof id !== 'string' || !id) throw new Error('非法的 id')
+    const textures = collectSeriesTextures(db, id)
+    const files = textures.length > 0 ? textures.map((t) => t.path) : null
+    const abs = assetAbsPath(db, id)
+    if (!files && !abs) throw new Error('资产文件不存在')
+    const asset = getAsset(db, id)
+    const icon = asset?.thumb_path && fs.existsSync(asset.thumb_path) ? asset.thumb_path : nativeImage.createEmpty()
+    event.sender.startDrag({ file: files ?? [abs!], icon })
+  })
 }

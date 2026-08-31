@@ -255,9 +255,15 @@ function GroupedGrid({
           <button
             key={tagId}
             onClick={() => onOpenGroup(tagId)}
+            draggable
+            onDragStart={(e) => {
+              // 组卡片拖拽 = 拖整套 PBR 贴图（拖到 Blender 选中的模型上自动上材质）
+              e.preventDefault()
+              void am().startDragSet(rep.id)
+            }}
             className="overflow-hidden rounded-lg border border-border bg-card text-left transition-colors hover:border-ring"
             style={{ width: thumbSize }}
-            title="点击展开该系列的全部文件"
+            title="点击展开该系列的全部文件；可拖到 Blender 中选中的模型上自动上材质"
           >
             <div className="flex aspect-square items-center justify-center overflow-hidden bg-muted">
               {rep.thumb_status === 'ready' && rep.thumb_path ? (
