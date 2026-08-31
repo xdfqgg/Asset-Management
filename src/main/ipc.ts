@@ -252,6 +252,7 @@ export function registerIpcHandlers(ctx: IpcContext): void {
     if (!files && !abs) throw new Error('资产文件不存在')
     const asset = getAsset(db, id)
     const icon = asset?.thumb_path && fs.existsSync(asset.thumb_path) ? asset.thumb_path : nativeImage.createEmpty()
-    event.sender.startDrag({ file: files ?? [abs!], icon })
+    const item = files ? { file: files, icon } : { file: abs as string, icon }
+    event.sender.startDrag(item)
   })
 }
